@@ -2,6 +2,31 @@
 CREATE TYPE "ProcessingStatus" AS ENUM ('UPLOADED', 'PROCESSING', 'INDEXED', 'FAILED');
 
 -- CreateTable
+CREATE TABLE "Institution" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "emailDomains" TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Institution_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "BrandArchetype" (
+    "id" TEXT NOT NULL,
+    "institutionId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "keywords" TEXT,
+    "color" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "BrandArchetype_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "name" TEXT,
@@ -11,6 +36,7 @@ CREATE TABLE "User" (
     "hashedPassword" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "institutionId" TEXT,
     "department" TEXT,
     "title" TEXT,
     "languages" TEXT[],
@@ -125,6 +151,18 @@ CREATE TABLE "ImageResource" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Institution_name_key" ON "Institution"("name");
+
+-- CreateIndex
+CREATE INDEX "Institution_name_idx" ON "Institution"("name");
+
+-- CreateIndex
+CREATE INDEX "BrandArchetype_institutionId_idx" ON "BrandArchetype"("institutionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "BrandArchetype_institutionId_name_key" ON "BrandArchetype"("institutionId", "name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
@@ -144,6 +182,12 @@ CREATE INDEX "DocumentChunk_sourceMaterialId_idx" ON "DocumentChunk"("sourceMate
 
 -- CreateIndex
 CREATE INDEX "ImageResource_userId_idx" ON "ImageResource"("userId");
+
+-- AddForeignKey
+ALTER TABLE "BrandArchetype" ADD CONSTRAINT "BrandArchetype_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "Institution"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "Institution"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

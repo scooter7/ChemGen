@@ -1,10 +1,13 @@
-@import "tailwindcss";
+@import "tailwindcss"; /* Or use @tailwind base; @tailwind components; @tailwind utilities; */
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Assuming --font-geist-sans and --font-geist-mono are defined elsewhere or via Tailwind config */
 }
 
+/* @theme inline is a custom at-rule, ensure your PostCSS setup supports it or remove if not needed */
+/* If it's for a specific theming library, it's likely fine. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -22,5 +25,50 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, sans-serif; /* Note: Tailwind typically manages font families via its config and utility classes. This might override Tailwind's font setup. */
 }
+
+/* --- ADDED SLIDER THUMB STYLES --- */
+.slider-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none; /* Important to override default styles */
+  appearance: none;
+  width: 16px; /* Or your desired size */
+  height: 16px; /* Or your desired size */
+  background-color: var(--slider-thumb-color, #6366f1); /* Default to indigo, will be overridden by inline style */
+  border-radius: 50%;
+  cursor: pointer;
+  margin-top: -6px; /* Adjust this to vertically center the thumb on a 2px high track. If your track is h-2 (8px), this might be -3px or -4px */
+  /* For an 8px track (h-2 in Tailwind), and 16px thumb:
+     (track height - thumb height) / 2 = (8 - 16) / 2 = -4px.
+     If track is default thin (like 2px), then (2 - 16) / 2 = -7px.
+     The default range input track height can vary.
+  */
+}
+
+.slider-thumb::-moz-range-thumb {
+  width: 16px; /* Or your desired size */
+  height: 16px; /* Or your desired size */
+  background-color: var(--slider-thumb-color, #6366f1); /* Default to indigo */
+  border-radius: 50%;
+  cursor: pointer;
+  border: none; /* Important for Firefox */
+}
+
+/* Optional: Style the track for a more consistent look if needed */
+/*
+.slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px; // Example height, matching Tailwind's h-2
+  background: #e5e7eb; // Light gray track (bg-gray-200)
+  border-radius: 9999px; // Rounded
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .slider-thumb {
+    background: #374151; // Dark gray track (dark:bg-gray-700)
+  }
+}
+*/

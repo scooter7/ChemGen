@@ -18,6 +18,38 @@ enum ProcessingStatus {
   FAILED
 }
 
+// --- NEW: Institution Model ---
+model Institution {
+  id            String   @id @default(cuid())
+  name          String   @unique // e.g., "Samford University"
+  emailDomains  String[] // e.g., ["samford.edu", "anotherdomain.samford.edu"] - for matching users
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users          User[]           // Users belonging to this institution
+  brandArchetypes BrandArchetype[] // Archetypes defined for this institution
+
+  @@index([name])
+}
+
+// --- NEW: BrandArchetype Model ---
+model BrandArchetype {
+  id            String   @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  name          String   // e.g., "Loyal Shepherd"
+  description   String?  @db.Text
+  keywords      String?  // e.g., "CARING • FRIENDLY • SUPPORTIVE"
+  color         String?  // Hex code for UI, e.g., "#5A2D82"
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([institutionId, name]) // Archetype names must be unique within an institution
+  @@index([institutionId])
+}
+
 model User {
   id                String   @id @default(cuid())
   name              String?
@@ -27,6 +59,10 @@ model User {
   hashedPassword    String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  // --- MODIFIED: Link User to Institution ---
+  institutionId     String?       // Foreign key for Institution
+  institution       Institution?  @relation(fields: [institutionId], references: [id], onDelete: SetNull) // User can exist without an institution, or if institution is deleted
 
   // Profile details
   department        String?
@@ -89,8 +125,8 @@ model ContentGeneration {
   mediaType         String?
   textCountTarget   Int?
   textCountUnit     String?
-  archetypesConfig  Json?
-  sourceMaterialIds String[] // Consider changing this to a many-to-many relation with SourceMaterial if these IDs map to SourceMaterial.id
+  archetypesConfig  Json?    // This might store the refined percentages
+  sourceMaterialIds String[] // Consider a many-to-many relation with SourceMaterial or DocumentChunk
 
   generatedSubject  String?  @db.Text
   generatedHeader   String?  @db.Text
@@ -126,17 +162,15 @@ model DocumentChunk {
   sourceMaterial   SourceMaterial @relation(fields: [sourceMaterialId], references: [id], onDelete: Cascade)
   
   content          String   @db.Text 
-  embedding        Unsupported("vector(768)")? // For text-embedding-004 (768 dimensions)
+  embedding        Unsupported("vector(768)")?
   metadata         Json?    
 
   createdAt        DateTime @default(now())
 
   @@index([sourceMaterialId])
-  // For pgvector similarity search on DocumentChunk.embedding:
+  // Vector index for DocumentChunk.embedding:
   // CREATE INDEX IF NOT EXISTS idx_document_chunk_embedding_cosine 
-  // ON "DocumentChunk" 
-  // USING hnsw (embedding vector_cosine_ops); 
-  // (Run manually in Supabase SQL Editor after migration)
+  // ON "DocumentChunk" USING hnsw (embedding vector_cosine_ops); 
 }
 
 model ImageResource {
@@ -150,7 +184,7 @@ model ImageResource {
   publicUrl             String?
   
   aiGeneratedDescription String?  @db.Text
-  embedding             Unsupported("vector(768)")? // <<< ADDED: Embedding for the aiGeneratedDescription (using text-embedding-004 dimensions)
+  embedding             Unsupported("vector(768)")? // Embedding for the aiGeneratedDescription
 
   uploadedAt            DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -160,9 +194,7 @@ model ImageResource {
   fileSize              Int?
 
   @@index([userId])
-  // For pgvector similarity search on ImageResource.embedding:
+  // Vector index for ImageResource.embedding:
   // CREATE INDEX IF NOT EXISTS idx_imageresource_embedding_cosine
-  // ON "ImageResource"
-  // USING hnsw (embedding vector_cosine_ops);
-  // (Run manually in Supabase SQL Editor after migration)
+  // ON "ImageResource" USING hnsw (embedding vector_cosine_ops);
 }
