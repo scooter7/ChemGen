@@ -1,0 +1,54 @@
+// app/api/source-materials/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/authOptions';
+import { PrismaClient, ProcessingStatus } from '@prisma/client'; // Import ProcessingStatus
+import { initPrisma } from '@/lib/prismaInit';
+
+const prisma = initPrisma();
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user || !session.user.id) {
+      return NextResponse.json({ message: 'Unauthorized. Please log in.' }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    // Get status from query parameters
+    const { searchParams } = new URL(req.url);
+    const statusQuery = searchParams.get('status');
+
+    let whereClause: any = { userId: userId };
+
+    if (statusQuery && Object.values(ProcessingStatus).includes(statusQuery as ProcessingStatus)) {
+      whereClause.status = statusQuery as ProcessingStatus;
+    }
+
+    const sourceMaterials = await prisma.sourceMaterial.findMany({
+      where: whereClause,
+      orderBy: {
+        uploadedAt: 'desc',
+      },
+      select: { // Select only necessary fields for the dropdown
+        id: true,
+        fileName: true,
+        status: true, // Good to return status for UI feedback
+      }
+    });
+
+    return NextResponse.json(sourceMaterials, { status: 200 });
+
+  } catch (error) {
+    console.error('Error fetching source materials:', error);
+    let errorMessage = 'An unexpected error occurred while fetching source materials.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    return NextResponse.json(
+      { message: 'Error fetching source materials.', error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
