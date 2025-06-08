@@ -93,6 +93,8 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
 export async function POST(
   request: NextRequest,
   { params }: { params: { materialId: string } }
+) {
+  const { materialId } = params; params }: { params: { materialId: string } }
 ) {    materialId: string }>
 ) {
   const { materialId } = context.params;
