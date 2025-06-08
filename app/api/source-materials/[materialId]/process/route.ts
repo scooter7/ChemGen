@@ -4,7 +4,7 @@ import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import pdf from 'pdf-parse'; // <-- The new, server-friendly PDF library
+import pdf from 'pdf-parse';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
 
@@ -15,7 +15,6 @@ declare module 'next-auth' {
   }
 }
 
-// Define the structure of the route's context parameter
 interface RouteContext {
   params: {
     materialId: string;
@@ -27,16 +26,10 @@ const prisma = initPrisma();
 // Supabase admin client
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Supabase environment variables are not configured.');
-}
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
 // Google Generative AI setup
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_KEY) {
-  throw new Error('GEMINI_API_KEY is not configured.');
-}
+const GEMINI_KEY = process.env.GEMINI_API_KEY!;
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
 
@@ -54,10 +47,10 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 }
 
 export async function POST(
-  request: NextRequest, // request parameter is unused but required by Next.js
-  context: RouteContext
+  _request: NextRequest, // Renamed as it's not used
+  { params }: RouteContext
 ) {
-  const { materialId } = context.params;
+  const { materialId } = params;
 
   try {
     const session = await getServerSession(authOptions);
@@ -94,17 +87,11 @@ export async function POST(
     } else if (src.fileType?.startsWith('text/')) {
       text = fileBuffer.toString('utf-8');
     } else {
-      await prisma.sourceMaterial.update({
-        where: { id: materialId }, data: { status: 'FAILED' }
-      });
-      return NextResponse.json({ message: `Unsupported file type: ${src.fileType}` }, { status: 400 });
+      throw new Error(`Unsupported file type: ${src.fileType}`);
     }
 
     if (!text.trim()) {
-       await prisma.sourceMaterial.update({
-        where: { id: materialId }, data: { status: 'FAILED' }
-      });
-      return NextResponse.json({ message: 'No text extracted' }, { status: 400 });
+        throw new Error('No text could be extracted from the document.');
     }
 
     const chunks = chunkText(text);
@@ -126,12 +113,14 @@ export async function POST(
     return NextResponse.json({ message: `Processed ${src.fileName}` }, { status: 200 });
 
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+    console.error("Processing error:", errorMessage);
+    
     await prisma.sourceMaterial.update({
         where: { id: materialId },
         data: { status: 'FAILED' }
     }).catch(updateErr => console.error("Failed to update status to FAILED:", updateErr));
     
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
     return NextResponse.json({ message: 'Failed to process material', error: errorMessage }, { status: 500 });
   }
 }
