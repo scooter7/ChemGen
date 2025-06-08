@@ -1,12 +1,10 @@
 // app/api/source-materials/[materialId]/process/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import type { DefaultSession } from 'next-auth';
+import { getServerSession, type DefaultSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
 
@@ -120,7 +118,6 @@ export async function POST(
       for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        // Correctly handle items that might not have the 'str' property
         fullText += textContent.items.map((item) => ('str' in item ? item.str : '')).join(' ') + "\n";
       }
       extractedText = fullText;
