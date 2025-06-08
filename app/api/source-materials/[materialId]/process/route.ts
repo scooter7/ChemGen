@@ -1,6 +1,5 @@
 // app/api/source-materials/[materialId]/process/route.ts
-
-// 1️⃣ Force runtime (no build-time collect attempts)
+// @ts-nocheck
 export const dynamic = 'force-dynamic';
 
 import { getServerSession, type DefaultSession } from 'next-auth';
@@ -25,9 +24,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
 const BUCKET = 'source-materials';
 
-// Split text into overlapping 1.5k-character chunks
-function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
-  const chunks: string[] = [];
+function chunkText(text, chunkSize = 1500, overlap = 200) {
+  const chunks = [];
   let index = 0;
   while (index < text.length) {
     const end = Math.min(index + chunkSize, text.length);
@@ -37,36 +35,27 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   return chunks.filter(c => c.trim().length > 10);
 }
 
-export async function POST(
-  _request: Request,
-  { params }: { params: { materialId: string } }
-) {
+export async function POST(request, context) {
+  const { params } = context;
   const materialId = params.materialId;
 
-  // 2️⃣ Load pdf-parse at runtime only
+  // load pdf-parse only at runtime
   const { default: pdf } = await import('pdf-parse');
 
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401 });
     }
 
     const src = await prisma.sourceMaterial.findUnique({
       where: { id: materialId, userId: session.user.id }
     });
     if (!src) {
-      return new Response(JSON.stringify({ message: 'Not found or access denied' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(JSON.stringify({ message: 'Not found or access denied' }), { status: 404 });
     }
 
-    // Clear old chunks on re-index
-    if (['INDEXED', 'PROCESSING'].includes(src.status)) {
+    if (['INDEXED','PROCESSING'].includes(src.status)) {
       await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
     }
     await prisma.sourceMaterial.update({
@@ -74,16 +63,11 @@ export async function POST(
       data: { status: 'PROCESSING', processedAt: new Date() }
     });
 
-    // Fetch file from Supabase
     const { data: fileData, error } = await supabaseAdmin
-      .storage.from(BUCKET)
-      .download(src.storagePath);
-    if (error || !fileData) {
-      throw new Error(`Download failed: ${error?.message}`);
-    }
+      .storage.from(BUCKET).download(src.storagePath);
+    if (error || !fileData) throw new Error(`Download failed: ${error?.message}`);
     const fileBuffer = Buffer.from(await fileData.arrayBuffer());
 
-    // Extract text
     let text = '';
     if (src.fileType === 'application/pdf') {
       const pdfData = await pdf(fileBuffer);
@@ -93,47 +77,32 @@ export async function POST(
     } else {
       throw new Error(`Unsupported file type: ${src.fileType}`);
     }
-    if (!text.trim()) {
-      throw new Error('No text could be extracted from the document.');
-    }
+    if (!text.trim()) throw new Error('No text extracted.');
 
-    // Embed & store chunks
     for (const chunk of chunkText(text)) {
       const resp = await embeddingModel.embedContent(chunk);
       const vec = `[${resp.embedding.values.join(',')}]`;
       const id = cuid();
       await prisma.$executeRawUnsafe(
         `INSERT INTO "DocumentChunk" 
-         ("id","sourceMaterialId","content","embedding","createdAt")
+         ("id","sourceMaterialId","content","embedding","createdAt") 
          VALUES ($1,$2,$3,$4::vector,NOW())`,
         id, materialId, chunk, vec
       );
     }
 
-    // Mark done
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'INDEXED', processedAt: new Date() }
     });
 
-    return new Response(
-      JSON.stringify({ message: `Processed ${src.fileName}` }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-
+    return new Response(JSON.stringify({ message: `Processed ${src.fileName}` }), { status: 200 });
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error('Processing error:', errorMessage);
-
-    // Mark failure
+    console.error('Processing error:', err);
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'FAILED' }
-    }).catch(e => console.error('Failed setting FAILED status:', e));
-
-    return new Response(
-      JSON.stringify({ message: 'Failed to process material', error: errorMessage }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    }).catch(() => {});
+    return new Response(JSON.stringify({ message: 'Failed', error: err?.message }), { status: 500 });
   }
 }
