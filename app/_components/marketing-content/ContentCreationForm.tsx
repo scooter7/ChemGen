@@ -31,6 +31,7 @@ import {
   UploadCloud,
   Layers,
   Save,
+  LucideProps, // Import LucideProps
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -84,7 +85,6 @@ interface SegmentedVariation {
 }
 
 export default function ContentCreationForm() {
-  // ... (rest of the component is unchanged) ...
   const initializeArchetypeRefinements = (): Record<string, number> => {
     const refinements: Record<string, number> = {};
     const archetypesToUse = samfordClientArchetypes || [];
@@ -161,7 +161,6 @@ export default function ContentCreationForm() {
     return refinements;
   };
 
-  // All useState calls are at the top level
   const [formData, setFormData] = useState<Partial<FormData>>({
     audience: "",
     mediaType: "",
@@ -177,7 +176,7 @@ export default function ContentCreationForm() {
     sourceMaterials: [],
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [isSavingHistory, setIsSavingHistory] = useState(false); // New state for saving history
+  const [isSavingHistory, setIsSavingHistory] = useState(false);
   const [generatedData, setGeneratedData] =
     useState<GeneratedData | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -230,7 +229,6 @@ export default function ContentCreationForm() {
     Record<string, string>
   >({});
 
-  // All useEffect calls are at the top level
   useEffect(() => {
     if (generatedData?.generatedText) {
       setEditableContent(generatedData.generatedText);
@@ -287,7 +285,6 @@ export default function ContentCreationForm() {
     fetchIndexedMaterials();
   }, []);
 
-  // All handler functions are defined at the top level of the component
   const handleChange = (
     event: ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -527,7 +524,6 @@ export default function ContentCreationForm() {
         setGeneralStatusMessage({ type: 'error', text: `Save failed: ${message}` });
     } finally {
         setIsSavingHistory(false);
-        // Hide the message after a few seconds
         setTimeout(() => setGeneralStatusMessage(null), 4000);
     }
   };
@@ -736,7 +732,7 @@ export default function ContentCreationForm() {
   }: {
     label: string;
     htmlFor?: string;
-    icon: React.FC<React.SVGProps<SVGSVGElement>>;
+    icon: React.FC<LucideProps>;
   }) => (
     <label
       htmlFor={htmlFor}
@@ -755,7 +751,6 @@ export default function ContentCreationForm() {
     </label>
   );
 
-  // JSX Return statement starts here
   return (
     <div className="bg-white dark:bg-gray-800 p-6 md:p-8 shadow-xl rounded-lg">
       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mb-6">
@@ -763,7 +758,6 @@ export default function ContentCreationForm() {
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Audience Selector */}
         <div>
           <LabelWithIcons label="Audience" htmlFor="audience" icon={Users} />
           <select
@@ -783,7 +777,6 @@ export default function ContentCreationForm() {
           </select>
         </div>
 
-        {/* Media Type Selector */}
         <div>
           <LabelWithIcons label="Media Type" htmlFor="mediaType" icon={Type} />
           <select
@@ -803,7 +796,6 @@ export default function ContentCreationForm() {
           </select>
         </div>
 
-        {/* Text Count */}
         <div>
           <LabelWithIcons label="Text Count" htmlFor="textCount" icon={Hash} />
           <div className="grid grid-cols-2 gap-4">
@@ -833,7 +825,6 @@ export default function ContentCreationForm() {
           </div>
         </div>
 
-        {/* Dominant Brand Archetype */}
         <div>
           <LabelWithIcons
             label="Dominant Brand Archetype"
@@ -880,7 +871,6 @@ export default function ContentCreationForm() {
           </div>
         </div>
 
-        {/* Prompt & Attach Source */}
         <div>
           <LabelWithIcons
             label="Prompt (include instructions and purpose)"
@@ -963,7 +953,6 @@ export default function ContentCreationForm() {
           </div>
         </div>
 
-        {/* Reference Source Materials */}
         <div>
           <LabelWithIcons
             label="Reference Source Material(s)"
@@ -1041,7 +1030,6 @@ export default function ContentCreationForm() {
           </div>
         </div>
 
-        {/* Form Submit Buttons */}
         <div className="flex justify-end space-x-3 pt-4">
           <button
             type="button"
@@ -1064,7 +1052,6 @@ export default function ContentCreationForm() {
         </div>
       </form>
 
-      {/* Archetype Refinement Modal */}
       <ArchetypeRefinementModal
         isOpen={showArchetypeRefinementModal}
         onClose={() => setShowArchetypeRefinementModal(false)}
@@ -1073,7 +1060,6 @@ export default function ContentCreationForm() {
         onApplyRefinements={handleApplyArchetypeRefinements}
       />
 
-      {/* Display API Error for main content generation */}
       {apiError && (
         <div className="mt-8 p-4 border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/30 rounded-lg shadow">
           <h3 className="text-md font-semibold text-red-700 dark:text-red-300 mb-2 flex items-center">
@@ -1084,7 +1070,6 @@ export default function ContentCreationForm() {
         </div>
       )}
 
-      {/* General Status Message */}
       {generalStatusMessage && (
         <div className={`mt-4 p-3 rounded-md text-sm font-medium ${
             generalStatusMessage.type === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' : 
@@ -1095,10 +1080,8 @@ export default function ContentCreationForm() {
         </div>
       )}
       
-      {/* Display Generated Content, Justification, Segmentation, and Image Recommendation Section */}
       {generatedData && !apiError && (
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-6">
-          {/* Result Justification Section */}
           {generatedData.justification && (
             <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg shadow bg-slate-50 dark:bg-slate-800/60">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2 flex items-center">
@@ -1114,7 +1097,6 @@ export default function ContentCreationForm() {
             </div>
           )}
 
-          {/* Main Generated Content Section with RichTextEditor */}
           <div className="p-4 border rounded-lg shadow bg-white dark:bg-gray-800">
             <div className="flex justify-between items-center mb-1">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -1165,7 +1147,6 @@ export default function ContentCreationForm() {
             />
           </div>
 
-          {/* Create Version Segmentations Section */}
           <div className="p-4 border-t dark:border-gray-700 rounded-lg shadow bg-slate-50 dark:bg-gray-800/60 mt-6">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3 flex items-center">
               <Layers size={20} className="mr-2 text-indigo-600 dark:text-indigo-400" />
@@ -1237,7 +1218,6 @@ export default function ContentCreationForm() {
             )}
           </div>
 
-          {/* Display Segmented Content Variations */}
           {segmentedContent && segmentedContent.length > 0 && (
             <div className="mt-6 space-y-4">
               <h4 className="text-md font-semibold text-gray-700 dark:text-white">
@@ -1252,7 +1232,6 @@ export default function ContentCreationForm() {
                     <h5 className="font-semibold text-indigo-600 dark:text-indigo-400">
                       {variation.segmentTag} Version
                     </h5>
-                    {/* TODO: Add Copy/Export buttons for each segment if needed */}
                   </div>
                   {variation.justification && (
                     <p className="text-xs italic text-gray-500 dark:text-gray-400 mb-2">
@@ -1277,7 +1256,6 @@ export default function ContentCreationForm() {
             </div>
           )}
 
-          {/* Image Recommendations Section */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 rounded-lg shadow bg-white dark:bg-gray-800 mt-6">
             <button
               type="button"
