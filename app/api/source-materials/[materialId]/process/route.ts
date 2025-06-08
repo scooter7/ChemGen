@@ -34,17 +34,11 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   return chunks.filter(c => c.trim().length > 10);
 }
 
-interface RouteContext {
-    params: {
-      materialId: string;
-    };
-}
-  
 export async function POST(
-  _request: NextRequest,
-  context: RouteContext,
+  request: NextRequest,
+  { params }: { params: { materialId: string } }
 ) {
-  const { materialId } = context.params;
+  const { materialId } = params;
 
   try {
     // Dynamically import pdf-parse
