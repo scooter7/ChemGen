@@ -35,9 +35,10 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   _request: Request,
-  context: { params: { [key: string]: string } }
+  // ← no explicit type here; let Next.js infer it
+  context: any
 ) {
-  const materialId = context.params.materialId;
+  const materialId: string = context.params.materialId;
 
   try {
     const session = await getServerSession(authOptions);
