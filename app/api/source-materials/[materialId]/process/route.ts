@@ -1,5 +1,6 @@
 // app/api/source-materials/[materialId]/process/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import type { RouteHandlerContext } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
@@ -42,9 +43,9 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   _request: NextRequest,
-  { params }: { params: { materialId: string } }
+  context: RouteHandlerContext
 ) {
-  const { materialId } = params;
+  const { materialId } = context.params;
 
   try {
     const session = await getServerSession(authOptions);
@@ -62,6 +63,7 @@ export async function POST(
     if (['INDEXED', 'PROCESSING'].includes(src.status)) {
       await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
     }
+
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'PROCESSING', processedAt: new Date() }
@@ -70,9 +72,11 @@ export async function POST(
     const { data: fileData, error } = await supabaseAdmin
       .storage.from(BUCKET)
       .download(src.storagePath);
+
     if (error || !fileData) {
       throw new Error(`Download failed: ${error?.message}`);
     }
+
     const fileBuffer = Buffer.from(await fileData.arrayBuffer());
 
     let text = '';
@@ -106,6 +110,7 @@ export async function POST(
     });
 
     return NextResponse.json({ message: `Processed ${src.fileName}` }, { status: 200 });
+
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
     console.error("Processing error:", errorMessage);
