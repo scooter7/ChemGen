@@ -2,33 +2,41 @@
 
 // Polyfill for DOMMatrix for Node.js environment
 if (typeof global.DOMMatrix === 'undefined') {
-  global.DOMMatrix = class {
-    a: number; b: number; c: number; d: number; e: number; f: number;
+  // A simple mock class to prevent the ReferenceError from pdfjs-dist
+  const MockDOMMatrix = class {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
 
     constructor(init?: string | number[]) {
-      this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
-      if (typeof init === 'string') {
-        const vals = init.replace('matrix(', '').replace(')', '').split(',').map(Number);
-        [this.a, this.b, this.c, this.d, this.e, this.f] = vals;
-      } else if (Array.isArray(init) && init.length === 6) {
-        [this.a, this.b, this.c, this.d, this.e, this.f] = init;
-      }
+        this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+        if (typeof init === 'string') {
+          const values = init.replace('matrix(', '').replace(')', '').split(',').map(Number);
+          [this.a, this.b, this.c, this.d, this.e, this.f] = values;
+        } else if (Array.isArray(init) && init.length === 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+        }
     }
-
-    // Prevent unused-vars lint errors
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     translate(tx: number, ty: number) { return this; }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     scale(sx: number, sy: number) { return this; }
 
+    // Add missing static methods to satisfy the type checker
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    static fromFloat32Array(_array32: Float32Array) { return new this(); }
+    static fromFloat32Array(array32: Float32Array) { return new this(); }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    static fromFloat64Array(_array64: Float64Array) { return new this(); }
+    static fromFloat64Array(array64: Float64Array) { return new this(); }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    static fromMatrix(_other?: unknown) { return new this(); }
-  } as unknown as typeof DOMMatrix;
+    static fromMatrix(other?: unknown) { return new this(); }
+  };
+  // Assign to global object using 'any' to bypass strict type checking
+  (global as any).DOMMatrix = MockDOMMatrix;
 }
+
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
@@ -87,9 +95,9 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   request: NextRequest,
-  context: { params: { materialId: string } }
+  { params }: { params: { materialId: string } }
 ) {
-  const { materialId } = context.params;
+  const materialId = params.materialId;
 
   // Authenticate
   const session = await getServerSession(authOptions);
