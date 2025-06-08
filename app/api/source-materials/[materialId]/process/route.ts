@@ -12,6 +12,7 @@ import cuid from 'cuid';
 const prisma = initPrisma(); 
 
 if (typeof window === 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (pdfjsLib as any).GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
 }
 

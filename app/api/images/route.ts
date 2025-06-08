@@ -1,5 +1,5 @@
 // app/api/images/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
 import { initPrisma } from '@/lib/prismaInit';
