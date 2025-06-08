@@ -1,6 +1,7 @@
 // app/api/source-materials/[materialId]/process/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession, type DefaultSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -95,7 +96,6 @@ export async function POST(
         data: { status: 'PROCESSING', processedAt: new Date() },
     });
 
-    console.log(`Attempting to download from Supabase path: ${sourceMaterial.storagePath} in bucket: ${BUCKET_NAME}`);
     const { data: fileData, error: downloadError } = await supabaseAdmin
       .storage
       .from(BUCKET_NAME)
@@ -121,7 +121,6 @@ export async function POST(
         fullText += textContent.items.map((item) => ('str' in item ? item.str : '')).join(' ') + "\n";
       }
       extractedText = fullText;
-      console.log(`Extracted ${pdfDocument.numPages} pages from PDF.`);
     } else if (sourceMaterial.fileType?.startsWith('text/')) {
       extractedText = Buffer.from(fileArrayBuffer).toString('utf-8');
     } else {
@@ -135,15 +134,12 @@ export async function POST(
     }
 
     const textChunks = chunkText(extractedText); 
-    console.log(`Extracted text chunked into ${textChunks.length} chunks.`);
 
     if(textChunks.length === 0) {
         await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }});
         return NextResponse.json({ message: 'Failed to chunk document, no content to process.' }, { status: 400 });
     }
 
-
-    let chunksEmbeddedCount = 0;
     for (const chunk of textChunks) {
       if (!chunk || chunk.trim() === "") continue;
       
@@ -161,19 +157,16 @@ export async function POST(
         chunk, 
         embeddingString
       );
-      chunksEmbeddedCount++;
     }
-    console.log(`${chunksEmbeddedCount} chunks embedded and stored.`);
 
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'INDEXED', processedAt: new Date() },
     });
 
-    return NextResponse.json({ message: `Successfully processed and indexed ${sourceMaterial.fileName}. ${chunksEmbeddedCount} chunks created.` }, { status: 200 });
+    return NextResponse.json({ message: `Successfully processed and indexed ${sourceMaterial.fileName}.` }, { status: 200 });
 
   } catch (error) {
-    console.error(`Error processing material ${materialId || 'unknown'}:`, error);
     if (materialId) {
         try {
             await prisma.sourceMaterial.update({
