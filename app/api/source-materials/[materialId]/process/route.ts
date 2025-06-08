@@ -1,9 +1,8 @@
-// app/api/source-materials/[materialId]/process/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-// 1️⃣ Force this API to be dynamic at runtime
 export const dynamic = 'force-dynamic';
 
-// 2️⃣ Declare missing types for pdf-parse so TS won’t complain
+// Declare pdf-parse so TS won’t complain
 declare module 'pdf-parse';
 
 import { getServerSession, type DefaultSession } from 'next-auth';
@@ -39,13 +38,10 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   return chunks.filter(c => c.trim().length > 10);
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { materialId: string } }
-) {
-  const materialId = params.materialId;
+export async function POST(request: Request, context: any) {
+  const materialId: string = context.params.materialId;
 
-  // Load pdf-parse at runtime only
+  // dynamic import so nothing runs at build time
   const { default: pdf } = await import('pdf-parse');
 
   try {
@@ -61,7 +57,6 @@ export async function POST(
       return new Response(JSON.stringify({ message: 'Not found or access denied' }), { status: 404 });
     }
 
-    // If re-indexing, clear old chunks
     if (['INDEXED', 'PROCESSING'].includes(src.status)) {
       await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
     }
@@ -70,16 +65,12 @@ export async function POST(
       data: { status: 'PROCESSING', processedAt: new Date() }
     });
 
-    // Download file
     const { data: fileData, error } = await supabaseAdmin
       .storage.from(BUCKET)
       .download(src.storagePath);
-    if (error || !fileData) {
-      throw new Error(`Download failed: ${error?.message}`);
-    }
+    if (error || !fileData) throw new Error(`Download failed: ${error?.message}`);
     const buffer = Buffer.from(await fileData.arrayBuffer());
 
-    // Extract text
     let text = '';
     if (src.fileType === 'application/pdf') {
       const pdfData = await pdf(buffer);
@@ -89,11 +80,8 @@ export async function POST(
     } else {
       throw new Error(`Unsupported file type: ${src.fileType}`);
     }
-    if (!text.trim()) {
-      throw new Error('No text extracted from document.');
-    }
+    if (!text.trim()) throw new Error('No text extracted from document.');
 
-    // Chunk, embed, and store
     for (const chunk of chunkText(text)) {
       const resp = await embeddingModel.embedContent(chunk);
       const vec = `[${resp.embedding.values.join(',')}]`;
@@ -106,7 +94,6 @@ export async function POST(
       );
     }
 
-    // Mark complete
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'INDEXED', processedAt: new Date() }
@@ -117,12 +104,11 @@ export async function POST(
     const msg = err instanceof Error ? err.message : 'Unknown error';
     console.error('Processing error:', msg);
 
-    // Mark failure
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'FAILED' }
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ message: 'Failed to process', error: msg }), { status: 500 });
+    return new Response(JSON.stringify({ message: 'Failed', error: msg }), { status: 500 });
   }
 }
