@@ -1,9 +1,9 @@
 // app/api/images/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
+import type { DefaultSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
 import { initPrisma } from '@/lib/prismaInit';
-import { type DefaultSession } from 'next-auth';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
@@ -28,13 +28,13 @@ export async function GET() {
     const imageResources = await prisma.imageResource.findMany({
       where: { userId: userId },
       orderBy: {
-        uploadedAt: 'desc', // Show newest first
+        uploadedAt: 'desc',
       },
-      select: { // Select only the fields needed for the list display
+      select: {
         id: true,
         fileName: true,
         fileType: true,
-        publicUrl: true, // Important for displaying the image
+        publicUrl: true,
         aiGeneratedDescription: true,
         uploadedAt: true,
         width: true,

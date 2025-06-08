@@ -1,11 +1,11 @@
 // app/api/images/recommendations/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { initPrisma } from '@/lib/prismaInit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ImageResource } from '@prisma/client'; // Import ImageResource type
-import { type DefaultSession } from 'next-auth';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
@@ -55,20 +55,15 @@ export async function POST(req: NextRequest) {
     const queryEmbeddingString = `[${queryEmbedding.join(',')}]`;
 
     // 2. Perform similarity search against ImageResource description embeddings
-    // We want images whose AI-generated descriptions are similar to the provided text content.
-    // Ensure you have a vector index on ImageResource.embedding (e.g., vector_cosine_ops)
     const recommendedImages = await prisma.$queryRaw<ImageResource[]>`
       SELECT 
         id, "fileName", "fileType", "publicUrl", "aiGeneratedDescription", 
         "uploadedAt", "width", "height", "fileSize", "userId", "updatedAt" 
-        -- Do not select the "embedding" column itself unless needed for re-ranking client-side
       FROM "ImageResource"
-      WHERE "userId" = ${userId} -- Scope search to the current user's images
+      WHERE "userId" = ${userId}
       ORDER BY embedding <-> (${queryEmbeddingString}::vector)
       LIMIT ${topN}
     `;
-    // The `<->` operator gives cosine distance (0 is most similar).
-    // If your index is `vector_ip_ops` or you normalize embeddings for dot product, use `<#>` and `DESC`.
 
     console.log(`Found ${recommendedImages.length} image recommendations for user ${userId}.`);
 

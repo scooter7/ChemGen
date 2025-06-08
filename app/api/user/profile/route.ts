@@ -1,8 +1,9 @@
 // app/api/user/profile/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession, type DefaultSession } from 'next-auth/next';
-import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
-import { PrismaClient, User } from '@prisma/client'; // Import User type
+import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
+import { PrismaClient, User } from '@prisma/client';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {

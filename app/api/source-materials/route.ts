@@ -1,10 +1,10 @@
 // app/api/source-materials/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { Prisma, ProcessingStatus } from '@prisma/client';
 import { initPrisma } from '@/lib/prismaInit';
-import { type DefaultSession } from 'next-auth';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
     }
     const userId = session.user.id;
 
-    // Get status from query parameters
     const { searchParams } = new URL(req.url);
     const statusQuery = searchParams.get('status');
 
@@ -41,10 +40,10 @@ export async function GET(req: NextRequest) {
       orderBy: {
         uploadedAt: 'desc',
       },
-      select: { // Select only necessary fields for the dropdown
+      select: {
         id: true,
         fileName: true,
-        status: true, // Good to return status for UI feedback
+        status: true,
       }
     });
 

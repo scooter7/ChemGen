@@ -1,11 +1,11 @@
 // app/api/source-materials/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
-import { createClient } from '@supabase/supabase-js'; // Supabase JS client
-import { nanoid } from 'nanoid'; // For generating unique filenames
-import { initPrisma } from '@/lib/prismaInit'; // Assuming you create this helper
-import { type DefaultSession } from 'next-auth';
+import type { DefaultSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
+import { createClient } from '@supabase/supabase-js';
+import { nanoid } from 'nanoid';
+import { initPrisma } from '@/lib/prismaInit';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
@@ -16,33 +16,28 @@ declare module 'next-auth' {
   }
 }
 
-const prisma = initPrisma(); // Use initialized Prisma client
+const prisma = initPrisma();
 
-// Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.error("CRITICAL_CONFIG_ERROR: Supabase URL or Service Role Key is not set in .env file for /api/source-materials/upload route.");
-  // This will cause an error when trying to create the Supabase client later if not handled.
 }
 
-// Create a single Supabase client instance for this module
-// Important: Use the service role key for backend operations like uploading to private buckets
 const supabaseAdmin = createClient(supabaseUrl!, supabaseServiceRoleKey!);
 
-const BUCKET_NAME = 'source-materials'; // The name of the bucket you created in Supabase
+const BUCKET_NAME = 'source-materials';
 
 export async function POST(req: NextRequest) {
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    // This check ensures that if env variables are missing, we don't proceed.
     return NextResponse.json({ message: 'Supabase client not configured on server due to missing environment variables.' }, { status: 500 });
   }
 
   try {
     const session = await getServerSession(authOptions);
     
-    console.log('SESSION_IN_UPLOAD_ROUTE:', JSON.stringify(session, null, 2)); // Log the whole session
+    console.log('SESSION_IN_UPLOAD_ROUTE:', JSON.stringify(session, null, 2));
 
     if (!session || !session.user || !session.user.id) {
       console.error('Unauthorized attempt to upload: No valid session or user ID.');
@@ -50,7 +45,6 @@ export async function POST(req: NextRequest) {
     }
     
     const userId = session.user.id;
-    // --- ADDED LOG FOR userId ---
     console.log('Attempting to create SourceMaterial for userId:', userId); 
 
     const formData = await req.formData();
@@ -61,9 +55,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'No file provided.' }, { status: 400 });
     }
 
-    // Generate a unique path/filename for storage
     const originalFileName = file.name;
-    const fileExtension = originalFileName.split('.').pop() || 'bin'; // Default extension if none
+    const fileExtension = originalFileName.split('.').pop() || 'bin';
     const nameWithoutExtension = originalFileName.substring(0, originalFileName.lastIndexOf('.')) || originalFileName;
     const uniqueFilenameSuffix = nanoid(8);
     const filePathInBucket = `${userId}/${nameWithoutExtension}_${uniqueFilenameSuffix}.${fileExtension}`;
@@ -93,13 +86,13 @@ export async function POST(req: NextRequest) {
     console.log(`File uploaded to Supabase. Path: ${uploadData.path}. Creating Prisma record for userId: ${userId}`);
     const newSourceMaterial = await prisma.sourceMaterial.create({
       data: {
-        userId: userId, // This is the foreign key causing issues
+        userId: userId,
         fileName: originalFileName,
         fileType: file.type,
         storagePath: uploadData.path, 
         description: description || null,
         fileSize: file.size,
-        status: 'UPLOADED', // Assuming you added this to your schema
+        status: 'UPLOADED',
       },
     });
     console.log('Prisma record created for SourceMaterial ID:', newSourceMaterial.id);

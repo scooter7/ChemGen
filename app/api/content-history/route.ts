@@ -1,6 +1,7 @@
 // app/api/content-history/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession, type DefaultSession } from 'next-auth/next';
+import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { initPrisma } from '@/lib/prismaInit';
 

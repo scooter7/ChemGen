@@ -1,12 +1,12 @@
 // app/api/images/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { initPrisma } from '@/lib/prismaInit';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI, Part } from '@google/generative-ai'; // Import Part
+import { GoogleGenerativeAI, Part } from '@google/generative-ai';
 import { nanoid } from 'nanoid';
-import { type DefaultSession } from 'next-auth';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
@@ -19,7 +19,6 @@ declare module 'next-auth' {
 
 const prisma = initPrisma();
 
-// Supabase Client (ensure these are set in your .env)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -27,17 +26,14 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 }
 const supabaseAdmin = createClient(supabaseUrl!, supabaseServiceRoleKey!);
 
-// Google Generative AI Client (ensure GEMINI_API_KEY is set)
 const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
   console.error("CRITICAL: GEMINI_API_KEY is not set for image upload route.");
 }
 const genAI = new GoogleGenerativeAI(API_KEY || "");
-// Use a model that supports vision, like gemini-1.5-flash-latest or gemini-1.5-pro-latest
-// gemini-pro-vision was an older model name, newer models like gemini-1.5-flash also handle vision.
 const visionModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
-const IMAGE_BUCKET_NAME = 'image-library'; // Bucket you created for images
+const IMAGE_BUCKET_NAME = 'image-library';
 
 async function generateDescriptionForImage(imageBuffer: Buffer, mimeType: string): Promise<string> {
   try {
@@ -75,7 +71,6 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    // const userDescription = formData.get('description') as string | null; // If you allow user-provided desc
 
     if (!file) {
       return NextResponse.json({ message: 'No image file provided.' }, { status: 400 });
@@ -87,17 +82,9 @@ export async function POST(req: NextRequest) {
 
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-    // 1. Generate AI Description
     const aiDescription = await generateDescriptionForImage(fileBuffer, file.type);
 
-    if (!aiDescription || aiDescription.trim() === "") {
-        // Fallback or error if AI description is empty
-        console.warn("AI description was empty for file:", file.name);
-        // aiDescription = "No description generated."; // Or throw error
-    }
-
-    // 2. Upload to Supabase Storage
-    const fileExtension = file.name.split('.').pop() || 'png'; // default to png if no ext
+    const fileExtension = file.name.split('.').pop() || 'png';
     const originalNameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const uniqueFilenameSuffix = nanoid(8);
     const filePathInBucket = `images/${userId}/${originalNameWithoutExt}_${uniqueFilenameSuffix}.${fileExtension}`;
@@ -105,7 +92,7 @@ export async function POST(req: NextRequest) {
     const { data: uploadData, error: uploadError } = await supabaseAdmin
       .storage
       .from(IMAGE_BUCKET_NAME)
-      .upload(filePathInBucket, fileBuffer, { // Upload the buffer
+      .upload(filePathInBucket, fileBuffer, {
         contentType: file.type,
         upsert: false,
       });
@@ -118,12 +105,9 @@ export async function POST(req: NextRequest) {
       throw new Error('Supabase Storage image upload failed: No path returned.');
     }
 
-    // 3. Get Public URL (assuming public bucket)
     const { data: publicUrlData } = supabaseAdmin.storage.from(IMAGE_BUCKET_NAME).getPublicUrl(uploadData.path);
     const publicUrl = publicUrlData?.publicUrl;
 
-    // 4. Save metadata to Prisma
-    // TODO: Get image dimensions (width, height) if possible. Requires a library like 'image-size' or processing on client.
     const newImageResource = await prisma.imageResource.create({
       data: {
         userId: userId,
@@ -133,8 +117,6 @@ export async function POST(req: NextRequest) {
         publicUrl: publicUrl || null,
         aiGeneratedDescription: aiDescription,
         fileSize: file.size,
-        // width: imageDimensions?.width, // Add later
-        // height: imageDimensions?.height, // Add later
       },
     });
 
