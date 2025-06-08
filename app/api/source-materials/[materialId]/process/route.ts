@@ -12,29 +12,27 @@ if (typeof global.DOMMatrix === 'undefined') {
     f: number;
 
     constructor(init?: string | number[]) {
-        this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
-        if (typeof init === 'string') {
-          const values = init.replace('matrix(', '').replace(')', '').split(',').map(Number);
-          [this.a, this.b, this.c, this.d, this.e, this.f] = values;
-        } else if (Array.isArray(init) && init.length === 6) {
-          [this.a, this.b, this.c, this.d, this.e, this.f] = init;
-        }
+      this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+      if (typeof init === 'string') {
+        const values = init.replace('matrix(', '').replace(')', '').split(',').map(Number);
+        [this.a, this.b, this.c, this.d, this.e, this.f] = values;
+      } else if (Array.isArray(init) && init.length === 6) {
+        [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      }
     }
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     translate(tx: number, ty: number) { return this; }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     scale(sx: number, sy: number) { return this; }
 
     // Add missing static methods to satisfy the type checker
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     static fromFloat32Array(array32: Float32Array) { return new this(); }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     static fromFloat64Array(array64: Float64Array) { return new this(); }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    static fromMatrix(other?: any) { return new this(); }
-  } as any;
+    // Use unknown instead of any
+    static fromMatrix(other?: unknown) { return new this(); }
+  } as unknown as typeof DOMMatrix;
 }
-
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
@@ -54,11 +52,11 @@ declare module 'next-auth' {
   }
 }
 
-const prisma = initPrisma(); 
+const prisma = initPrisma();
 
 if (typeof window === 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (pdfjsLib as any).GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker.mjs';
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -72,7 +70,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
   console.error("CRITICAL: GEMINI_API_KEY is not set for processing route.");
 }
-const genAI = new GoogleGenerativeAI(API_KEY || "");
+const genAI = new GoogleGenerativeAI(API_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
 const BUCKET_NAME = 'source-materials';
@@ -85,19 +83,17 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
     const end = Math.min(i + chunkSize, text.length);
     chunks.push(text.substring(i, end));
     i += (chunkSize - overlap);
-    if (i < 0 && text.length > 0) i = 0; 
-    else if (i >= text.length && end < text.length) break; 
+    if (i < 0 && text.length > 0) i = 0;
+    else if (i >= text.length && end < text.length) break;
   }
   return chunks.filter(chunk => chunk.trim().length > 10);
 }
 
-
 export async function POST(
   _req: NextRequest,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  context: any 
+  { params }: { params: { materialId: string } }
 ) {
-  const { materialId } = context.params; 
+  const { materialId } = params;
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !API_KEY) {
     return NextResponse.json({ message: 'Server configuration error for processing.' }, { status: 500 });
@@ -105,7 +101,7 @@ export async function POST(
 
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
     const userId = session.user.id;
@@ -123,13 +119,13 @@ export async function POST(
     }
     
     if (sourceMaterial.status === 'INDEXED' || sourceMaterial.status === 'PROCESSING') {
-        console.log(`Material ${materialId} status is ${sourceMaterial.status}. Re-processing: Deleting old chunks.`);
-        await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId }});
+      console.log(`Material ${materialId} status is ${sourceMaterial.status}. Re-processing: Deleting old chunks.`);
+      await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId }});
     }
     
     await prisma.sourceMaterial.update({
-        where: { id: materialId },
-        data: { status: 'PROCESSING', processedAt: new Date() },
+      where: { id: materialId },
+      data: { status: 'PROCESSING', processedAt: new Date() },
     });
 
     const { data: fileData, error: downloadError } = await supabaseAdmin
@@ -138,7 +134,7 @@ export async function POST(
       .download(sourceMaterial.storagePath);
 
     if (downloadError) {
-        throw new Error(`Failed to download file from Supabase. Raw error: ${downloadError.message}`);
+      throw new Error(`Failed to download file from Supabase. Raw error: ${downloadError.message}`);
     }
     if (!fileData) {
       throw new Error('No file data downloaded from Supabase.');
@@ -165,32 +161,38 @@ export async function POST(
     }
 
     if (!extractedText || !extractedText.trim()) {
-        await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." }});
-        return NextResponse.json({ message: 'No text content found in the document.' }, { status: 400 });
+      await prisma.sourceMaterial.update({
+        where: { id: materialId },
+        data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." }
+      });
+      return NextResponse.json({ message: 'No text content found in the document.' }, { status: 400 });
     }
 
-    const textChunks = chunkText(extractedText); 
+    const textChunks = chunkText(extractedText);
 
-    if(textChunks.length === 0) {
-        await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }});
-        return NextResponse.json({ message: 'Failed to chunk document, no content to process.' }, { status: 400 });
+    if (textChunks.length === 0) {
+      await prisma.sourceMaterial.update({
+        where: { id: materialId },
+        data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }
+      });
+      return NextResponse.json({ message: 'Failed to chunk document, no content to process.' }, { status: 400 });
     }
 
     for (const chunk of textChunks) {
-      if (!chunk || chunk.trim() === "") continue;
-      
+      if (!chunk.trim()) continue;
+
       const embeddingResponse = await embeddingModel.embedContent(chunk);
       const embeddingValues = embeddingResponse.embedding.values;
       const embeddingString = `[${embeddingValues.join(',')}]`;
-      
+
       const newChunkId = cuid();
 
       await prisma.$executeRawUnsafe(
         `INSERT INTO "DocumentChunk" ("id", "sourceMaterialId", "content", "embedding", "createdAt") 
          VALUES ($1, $2, $3, $4::vector, NOW())`,
         newChunkId,
-        materialId, 
-        chunk, 
+        materialId,
+        chunk,
         embeddingString
       );
     }
@@ -203,15 +205,15 @@ export async function POST(
     return NextResponse.json({ message: `Successfully processed and indexed ${sourceMaterial.fileName}.` }, { status: 200 });
 
   } catch (error) {
-    if (materialId) {
-        try {
-            await prisma.sourceMaterial.update({
-                where: { id: materialId },
-                data: { status: 'FAILED', processedAt: new Date() },
-            });
-        } catch (statusUpdateError) {
-            console.error("Failed to update material status to FAILED:", statusUpdateError);
-        }
+    if (params.materialId) {
+      try {
+        await prisma.sourceMaterial.update({
+          where: { id: params.materialId },
+          data: { status: 'FAILED', processedAt: new Date() },
+        });
+      } catch (statusUpdateError) {
+        console.error("Failed to update material status to FAILED:", statusUpdateError);
+      }
     }
     return NextResponse.json({ message: 'Failed to process material.', error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
