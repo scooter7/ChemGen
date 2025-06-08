@@ -66,15 +66,15 @@ export async function POST(
     });
 
     // Validate storagePath
-    if (src.storagePath.startsWith('./') || src.storagePath.startsWith('../')) {
-      console.error(`Invalid storagePath for materialId ${materialId}: ${src.storagePath}. Path appears to be local.`);
+    if (src.storagePath.startsWith('./') || src.storagePath.startsWith('../') || src.storagePath.includes('test/data')) {
+      console.error(`Invalid storagePath for materialId ${materialId}: ${src.storagePath}. Path appears to be local or test data.`);
       await prisma.sourceMaterial.update({
         where: { id: materialId },
         data: { status: 'FAILED', processedAt: new Date() }
       });
       return NextResponse.json({
         message: 'Failed to process material due to invalid storage path format.',
-        error: `Invalid storagePath: ${src.storagePath}. Path appears to be local.`
+        error: `Invalid storagePath: ${src.storagePath}. Path appears to be local or test data.`
       }, { status: 400 });
     }
 
