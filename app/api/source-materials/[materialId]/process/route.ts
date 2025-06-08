@@ -35,9 +35,9 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   _request: Request,
-  context: { params: { materialId: string } }
+  context: { params: { [key: string]: string } }
 ) {
-  const { materialId } = context.params;
+  const materialId = context.params.materialId;
 
   try {
     const session = await getServerSession(authOptions);
