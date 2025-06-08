@@ -6,7 +6,6 @@ import { useEditor, EditorContent, Editor, BubbleMenu } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
 import UnderlineExtension from "@tiptap/extension-underline";
-import StrikeExtension from "@tiptap/extension-strike";
 import {
   Bold,
   Italic,
@@ -207,11 +206,13 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        history: true,
-        strike: true,
+        // history: true, // Removed: Enabled by default
+        // strike: true,  // Removed: Enabled by default
       }),
       UnderlineExtension,
-      StrikeExtension,
+      // The StrikeExtension is part of StarterKit, so it can be removed from here
+      // if you are not passing specific configurations to it.
+      // StrikeExtension, 
       LinkExtension.configure({
         openOnClick: false,
         autolink: true,
