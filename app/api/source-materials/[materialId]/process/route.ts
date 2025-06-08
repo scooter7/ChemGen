@@ -20,7 +20,7 @@ if (typeof global.DOMMatrix === 'undefined') {
       }
     }
 
-    // Prevent unused-var errors
+    // Prevent unused-vars errors
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     translate(tx: number, ty: number) { return this; }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -65,9 +65,11 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 }
 const supabaseAdmin = createClient(supabaseUrl!, supabaseServiceRoleKey!);
 
+// Ensure GEMINI_API_KEY is defined before use
 const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
   console.error("CRITICAL: GEMINI_API_KEY is not set for processing route.");
+  throw new Error("GEMINI_API_KEY not set");
 }
 const genAI = new GoogleGenerativeAI(API_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
@@ -94,7 +96,7 @@ export async function POST(
 ) {
   const { materialId } = context.params;
 
-  if (!supabaseUrl || !supabaseServiceRoleKey || !API_KEY) {
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
     return NextResponse.json({ message: 'Server configuration error for processing.' }, { status: 500 });
   }
 
@@ -152,8 +154,7 @@ export async function POST(
       return NextResponse.json({ message: `Unsupported file type: ${sourceMaterial.fileType}` }, { status: 400 });
     }
 
-    if (!extractedText.trim()) {
-      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." } });
+    if (!extractedText.trim()) {\n      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." } });
       return NextResponse.json({ message: 'No text content found.' }, { status: 400 });
     }
 
