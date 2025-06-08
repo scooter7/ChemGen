@@ -4,7 +4,7 @@ import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-// We will import pdf-parse inside the function using require
+import pdf from 'pdf-parse';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
 
@@ -52,9 +52,6 @@ export async function POST(
   { params }: RouteContext
 ) {
   const { materialId } = params;
-
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pdf = require('pdf-parse');
 
   try {
     const session = await getServerSession(authOptions);
