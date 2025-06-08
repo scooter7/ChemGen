@@ -54,6 +54,13 @@ declare module 'next-auth' {
   }
 }
 
+// Define an interface for the route context
+interface RouteContext {
+  params: {
+    materialId: string;
+  };
+}
+
 const prisma = initPrisma();
 
 // Configure PDF.js worker in Node
@@ -95,9 +102,9 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { materialId: string } }
+  context: RouteContext
 ) {
-  const materialId = params.materialId;
+  const { materialId } = context.params;
 
   // Authenticate
   const session = await getServerSession(authOptions);
