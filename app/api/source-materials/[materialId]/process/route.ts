@@ -48,10 +48,12 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
 
 
 export async function POST(
-  _req: NextRequest, // The request object is not used, so it's prefixed with _
-  { params }: { params: { materialId: string } } 
+  // The request object is not used, so it's prefixed with _
+  _req: NextRequest, 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: any 
 ) {
-  const { materialId } = params; 
+  const { materialId } = context.params; 
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !API_KEY) {
     return NextResponse.json({ message: 'Server configuration error for processing.' }, { status: 500 });
