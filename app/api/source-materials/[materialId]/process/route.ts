@@ -32,7 +32,7 @@ if (typeof global.DOMMatrix === 'undefined') {
     static fromFloat64Array(array64: Float64Array) { return new this(); }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     static fromMatrix(other?: unknown) { return new this(); }
-  };
+  } as any; // Cast to any to bypass strict prototype checking
 }
 
 
