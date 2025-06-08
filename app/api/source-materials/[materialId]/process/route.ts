@@ -1,6 +1,7 @@
 // app/api/source-materials/[materialId]/process/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
+import type { DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -8,7 +9,6 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
-import { type DefaultSession } from 'next-auth';
 
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
@@ -58,8 +58,7 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
 
 
 export async function POST(
-  // The request object is not used, so it's prefixed with _
-  _req: NextRequest, 
+  _req: NextRequest,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   context: any 
 ) {
@@ -104,16 +103,10 @@ export async function POST(
       .from(BUCKET_NAME)
       .download(sourceMaterial.storagePath);
 
-    console.log('Supabase downloadError object:', JSON.stringify(downloadError, null, 2));
-    console.log('Supabase fileData object (on download attempt):', fileData ? 'Blob/File data received' : String(fileData)); 
-
     if (downloadError) {
-        console.error('Full Supabase Storage download error object:', downloadError); 
-        const errorMessage = typeof downloadError.message === 'string' ? downloadError.message : JSON.stringify(downloadError);
-        throw new Error(`Failed to download file from Supabase. Raw error: ${errorMessage}`);
+        throw new Error(`Failed to download file from Supabase. Raw error: ${downloadError.message}`);
     }
     if (!fileData) {
-      console.error('No file data returned from Supabase download, and no explicit error object was present.');
       throw new Error('No file data downloaded from Supabase.');
     }
         
@@ -127,7 +120,8 @@ export async function POST(
       for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: TextItem) => item.str).join(' ') + "\n";
+        // Correctly handle items that might not have the 'str' property
+        fullText += textContent.items.map((item) => ('str' in item ? item.str : '')).join(' ') + "\n";
       }
       extractedText = fullText;
       console.log(`Extracted ${pdfDocument.numPages} pages from PDF.`);
