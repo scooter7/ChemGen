@@ -3,6 +3,7 @@ import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+// @ts-ignore: no type definitions for pdf-parse
 import pdf from 'pdf-parse';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
@@ -37,7 +38,6 @@ export async function POST(
   _request: Request,
   context: unknown
 ) {
-  // cast once—avoids any and satisfies ESLint
   const { params } = context as { params: Record<string, string> };
   const materialId = params.materialId;
 
