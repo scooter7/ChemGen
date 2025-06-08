@@ -90,9 +90,9 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: { materialId: string } }
+  { params }: { params: Record<string, string> }
 ) {
-  const { materialId } = params;
+  const materialId = params.materialId;
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !API_KEY) {
     return NextResponse.json({ message: 'Server configuration error for processing.' }, { status: 500 });
@@ -117,8 +117,7 @@ export async function POST(
     }
 
     await prisma.sourceMaterial.update({
-      where: { id: materialId },
-      data: { status: 'PROCESSING', processedAt: new Date() },
+      where: { id: materialId }, data: { status: 'PROCESSING', processedAt: new Date() }
     });
 
     const { data: fileData, error: downloadError } = await supabaseAdmin
@@ -149,24 +148,18 @@ export async function POST(
     } else if (sourceMaterial.fileType?.startsWith('text/')) {
       extractedText = Buffer.from(fileArrayBuffer).toString('utf-8');
     } else {
-      await prisma.sourceMaterial.update({
-        where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date() }
-      });
+      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date() } });
       return NextResponse.json({ message: `Unsupported file type: ${sourceMaterial.fileType}` }, { status: 400 });
     }
 
     if (!extractedText.trim()) {
-      await prisma.sourceMaterial.update({
-        where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." }
-      });
+      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." } });
       return NextResponse.json({ message: 'No text content found.' }, { status: 400 });
     }
 
     const textChunks = chunkText(extractedText);
     if (!textChunks.length) {
-      await prisma.sourceMaterial.update({
-        where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }
-      });
+      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." } });
       return NextResponse.json({ message: 'Failed to chunk document.' }, { status: 400 });
     }
 
@@ -190,9 +183,7 @@ export async function POST(
 
   } catch (error) {
     console.error(error);
-    await prisma.sourceMaterial.update({
-      where: { id: params.materialId }, data: { status: 'FAILED', processedAt: new Date() }
-    });
+    await prisma.sourceMaterial.update({ where: { id: params.materialId }, data: { status: 'FAILED', processedAt: new Date() } });
     return NextResponse.json({ message: 'Processing failed.', error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
