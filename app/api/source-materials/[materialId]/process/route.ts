@@ -25,10 +25,13 @@ if (typeof global.DOMMatrix === 'undefined') {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     scale(sx: number, sy: number) { return this; }
 
-    // Add missing static methods to satisfy the type checker, prefix unused params with _
-    static fromFloat32Array(_array32: Float32Array) { return new this(); }
-    static fromFloat64Array(_array64: Float64Array) { return new this(); }
-    static fromMatrix(_other?: unknown) { return new this(); }
+    // Disable unused-vars for polyfill static methods
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    static fromFloat32Array(array32: Float32Array) { return new this(); }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    static fromFloat64Array(array64: Float64Array) { return new this(); }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    static fromMatrix(other?: unknown) { return new this(); }
   } as unknown as typeof DOMMatrix;
 }
 
@@ -147,25 +150,22 @@ export async function POST(
       extractedText = Buffer.from(fileArrayBuffer).toString('utf-8');
     } else {
       await prisma.sourceMaterial.update({
-        where: { id: materialId },
-        data: { status: 'FAILED', processedAt: new Date() }
+        where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date() }
       });
       return NextResponse.json({ message: `Unsupported file type: ${sourceMaterial.fileType}` }, { status: 400 });
     }
 
     if (!extractedText.trim()) {
       await prisma.sourceMaterial.update({
-        where: { id: materialId },
-        data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." }
+        where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." }
       });
       return NextResponse.json({ message: 'No text content found.' }, { status: 400 });
     }
 
     const textChunks = chunkText(extractedText);
-    if (textChunks.length === 0) {
+    if (!textChunks.length) {
       await prisma.sourceMaterial.update({
-        where: { id: materialId },
-        data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }
+        where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }
       });
       return NextResponse.json({ message: 'Failed to chunk document.' }, { status: 400 });
     }
@@ -178,16 +178,12 @@ export async function POST(
       const newChunkId = cuid();
       await prisma.$executeRawUnsafe(
         `INSERT INTO "DocumentChunk" ("id","sourceMaterialId","content","embedding","createdAt") VALUES ($1,$2,$3,$4::vector,NOW())`,
-        newChunkId,
-        materialId,
-        chunk,
-        embeddingString
+        newChunkId, materialId, chunk, embeddingString
       );
     }
 
     await prisma.sourceMaterial.update({
-      where: { id: materialId },
-      data: { status: 'INDEXED', processedAt: new Date() }
+      where: { id: materialId }, data: { status: 'INDEXED', processedAt: new Date() }
     });
 
     return NextResponse.json({ message: `Successfully processed ${sourceMaterial.fileName}.` }, { status: 200 });
@@ -195,8 +191,7 @@ export async function POST(
   } catch (error) {
     console.error(error);
     await prisma.sourceMaterial.update({
-      where: { id: params.materialId },
-      data: { status: 'FAILED', processedAt: new Date() }
+      where: { id: params.materialId }, data: { status: 'FAILED', processedAt: new Date() }
     });
     return NextResponse.json({ message: 'Processing failed.', error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
