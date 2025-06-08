@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
-import { UploadCloud, FileText, ImageIcon, VideoIcon, Trash2, RefreshCw, Zap, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'; // Added Loader2
+import { UploadCloud, FileText, ImageIcon, VideoIcon, Trash2, RefreshCw, Zap, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface SourceMaterial {
   id: string;
@@ -24,11 +24,11 @@ export default function BrandMaterialsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState<string>("");
   const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null); // General status message
+  const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [processingMaterialId, setProcessingMaterialId] = useState<string | null>(null);
-  const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null); // State for delete operation
+  const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
 
   const fetchMaterials = async () => {
     setIsLoadingMaterials(true);
@@ -105,7 +105,6 @@ export default function BrandMaterialsPage() {
     }
   };
 
-  // --- IMPLEMENTED DELETE FUNCTION ---
   const handleDeleteMaterial = async (materialId: string, fileName: string) => {
     if (!window.confirm(`Are you sure you want to delete "${fileName}"? This will also remove its processed data.`)) {
       return;
@@ -121,9 +120,7 @@ export default function BrandMaterialsPage() {
         throw new Error(result.message || `Failed to delete material: ${response.status}`);
       }
       setStatusMessage({type: 'success', text: result.message || `"${fileName}" deleted successfully!`});
-      // Refresh list by filtering out the deleted item or re-fetching
       setMaterials(prevMaterials => prevMaterials.filter(material => material.id !== materialId));
-      // Or: await fetchMaterials(); // if you prefer to refetch the entire list
     } catch (error) {
       console.error("Error deleting material:", error);
       setStatusMessage({type: 'error', text: `Delete Error: ${error instanceof Error ? error.message : 'Unknown error'}`});
@@ -133,7 +130,6 @@ export default function BrandMaterialsPage() {
   };
 
   const getFileIcon = (fileType?: string | null) => {
-    // ... (getFileIcon function remains the same)
     if (!fileType) return <FileText className="h-6 w-6 text-gray-500 dark:text-gray-400" />;
     if (fileType.startsWith('image/')) return <ImageIcon className="h-6 w-6 text-blue-500 dark:text-blue-400" />;
     if (fileType.startsWith('video/')) return <VideoIcon className="h-6 w-6 text-purple-500 dark:text-purple-400" />;
@@ -142,12 +138,11 @@ export default function BrandMaterialsPage() {
   };
 
   const getStatusIcon = (status: string) => {
-    // ... (getStatusIcon function remains the same)
     switch (status) {
-        case 'UPLOADED': return <UploadCloud size={16} className="text-blue-500" title="Uploaded, pending processing"/>;
-        case 'PROCESSING': return <RefreshCw size={16} className="text-yellow-500 animate-spin" title="Processing..."/>;
-        case 'INDEXED': return <CheckCircle2 size={16} className="text-green-500" title="Processed & Indexed"/>;
-        case 'FAILED': return <AlertCircle size={16} className="text-red-500" title="Processing Failed"/>;
+        case 'UPLOADED': return <span title="Uploaded, pending processing"><UploadCloud size={16} className="text-blue-500"/></span>;
+        case 'PROCESSING': return <span title="Processing..."><RefreshCw size={16} className="text-yellow-500 animate-spin"/></span>;
+        case 'INDEXED': return <span title="Processed & Indexed"><CheckCircle2 size={16} className="text-green-500"/></span>;
+        case 'FAILED': return <span title="Processing Failed"><AlertCircle size={16} className="text-red-500"/></span>;
         default: return null;
     }
   };
@@ -162,9 +157,7 @@ export default function BrandMaterialsPage() {
           Upload and manage documents, images, and videos that define your brand&apos;s persona and provide context for AI content generation.
         </p>
 
-        {/* File Upload Section (same as before) */}
         <form onSubmit={handleFileUpload} className="mb-8 p-4 border border-dashed border-indigo-300 dark:border-indigo-600 rounded-lg bg-indigo-50 dark:bg-gray-800/50 space-y-4">
-          {/* ... existing file upload UI ... */}
           <h2 className="text-lg font-semibold text-gray-700 dark:text-white">Upload New Material</h2>
           <div>
             <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select File</label>
@@ -186,7 +179,6 @@ export default function BrandMaterialsPage() {
               </button>
             </>
           )}
-          {/* --- MODIFIED STATUS MESSAGE DISPLAY --- */}
           {statusMessage && (
             <p className={`mt-2 text-sm font-medium p-2 rounded-md ${
                 statusMessage.type === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' : 
@@ -198,7 +190,6 @@ export default function BrandMaterialsPage() {
           )}
         </form>
 
-        {/* List of Uploaded Materials */}
         <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-700 dark:text-white">Uploaded Materials</h2>
@@ -213,7 +204,6 @@ export default function BrandMaterialsPage() {
             <ul className="space-y-3">
               {materials.map((material) => (
                 <li key={material.id} className="bg-slate-50 dark:bg-gray-700/50 p-3 rounded-md shadow flex items-center justify-between space-x-3">
-                  {/* ... (material details display - same as before) ... */}
                   <div className="flex items-center space-x-3 flex-grow min-w-0">
                     {getFileIcon(material.fileType)}
                     <div className="flex-grow min-w-0">
