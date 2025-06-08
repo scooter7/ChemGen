@@ -16,7 +16,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email", placeholder: "jsmith@example.com" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials, req) {
+      async authorize(credentials, _req) {
         if (!credentials?.email || !credentials?.password) {
           console.log('Missing credentials');
           return null;
@@ -68,7 +68,7 @@ export const authOptions: NextAuthOptions = {
     // newUser: '/auth/new-user' // Optional: New users will be directed here on first sign in (leave out for now)
   },
   callbacks: {
-    async jwt({ token, user, account, profile, isNewUser }) {
+    async jwt({ token, user, _account, _profile, _isNewUser }) {
       // The `user` object is passed on sign-in.
       // `account` and `profile` are passed when using OAuth providers.
       if (user) {
@@ -79,7 +79,7 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    async session({ session, token, user }) {
+    async session({ session, token, _user }) {
       // `token` is the JWT token from the `jwt` callback.
       // `user` is the user data, for database strategy it's from the database, for jwt strategy it's from the token.
       // Here, we ensure the session.user object gets the id from the token.

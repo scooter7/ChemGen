@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useEffect, FormEvent } from 'react'; // Added FormEvent
-import { useRouter } from 'next/navigation';
 // import { UserCircle2 } from 'lucide-react'; // Already imported if you used it for avatar
 
 interface UserProfileData {

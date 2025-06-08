@@ -8,7 +8,7 @@ import React, {
   useRef,
   ChangeEvent,
   KeyboardEvent,
-} from "react"; // Ensured all types are imported
+} from "react";
 import {
   Users,
   Type,
@@ -30,12 +30,12 @@ import {
   Loader2,
   UploadCloud,
   Layers,
-  Save, // Import Save Icon
+  Save,
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
 import ArchetypeRefinementModal from "./ArchetypeRefinementModal";
-import { type Archetype, samfordClientArchetypes } from "./archetypeData";
+import { samfordClientArchetypes } from "./archetypeData";
 
 // Interfaces
 interface FormData {
@@ -58,7 +58,7 @@ interface ApiResponse {
   message: string;
   data?: GeneratedData;
   error?: string;
-  debugInfo?: any;
+  debugInfo?: unknown;
 }
 
 interface AvailableSourceMaterial {
@@ -84,7 +84,7 @@ interface SegmentedVariation {
 }
 
 export default function ContentCreationForm() {
-  // Helper function for archetype initialization - defined outside to be callable by useState directly
+  // ... (rest of the component is unchanged) ...
   const initializeArchetypeRefinements = (): Record<string, number> => {
     const refinements: Record<string, number> = {};
     const archetypesToUse = samfordClientArchetypes || [];

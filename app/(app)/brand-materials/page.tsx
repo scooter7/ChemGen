@@ -159,7 +159,7 @@ export default function BrandMaterialsPage() {
           Brand Materials & Knowledge Base
         </h1>
         <p className="text-gray-600 dark:text-gray-300 mb-6">
-          Upload and manage documents, images, and videos that define your brand's persona and provide context for AI content generation.
+          Upload and manage documents, images, and videos that define your brand&apos;s persona and provide context for AI content generation.
         </p>
 
         {/* File Upload Section (same as before) */}

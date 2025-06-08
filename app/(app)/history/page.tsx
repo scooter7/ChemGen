@@ -78,7 +78,7 @@ export default function HistoryPage() {
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-grow">
                     <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Prompt:</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 italic">"{item.promptText}"</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 italic">&quot;{item.promptText}&quot;</p>
                     <div className="mt-2 flex gap-4 text-xs text-gray-500 dark:text-gray-400">
                       <span><strong>Audience:</strong> {item.audience || 'N/A'}</span>
                       <span><strong>Media Type:</strong> {item.mediaType || 'N/A'}</span>

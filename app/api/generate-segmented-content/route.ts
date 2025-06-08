@@ -2,12 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, GenerativeModel } from '@google/generative-ai';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 // Ensure genAI and generationModel are initialized if API_KEY exists
 let genAI: GoogleGenerativeAI | null = null;
-let generationModel: any = null; // Use 'any' or a more specific type if available from SDK
+let generationModel: GenerativeModel | null = null;
 
 if (API_KEY) {
   genAI = new GoogleGenerativeAI(API_KEY);
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
             .join(', ')
         : (originalPromptData?.dominantArchetype || 'general university persona');
 
-      let adaptationPrompt = `
+      const adaptationPrompt = `
         You are an AI assistant adapting marketing content for Samford University.
         The original content was generated for a target audience of "${originalPromptData?.audience || 'a general audience'}" 
         with the brand archetype(s) influence of: ${archetypeInfo}.

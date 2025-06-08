@@ -7,7 +7,7 @@ import { initPrisma } from '@/lib/prismaInit';
 const prisma = initPrisma();
 
 // GET handler to fetch history for the logged-in user
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user || !session.user.id) {

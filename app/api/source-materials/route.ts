@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
-import { PrismaClient, ProcessingStatus } from '@prisma/client'; // Import ProcessingStatus
+import { Prisma, ProcessingStatus } from '@prisma/client';
 import { initPrisma } from '@/lib/prismaInit';
 
 const prisma = initPrisma();
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const statusQuery = searchParams.get('status');
 
-    let whereClause: any = { userId: userId };
+    const whereClause: Prisma.SourceMaterialWhereInput = { userId: userId };
 
     if (statusQuery && Object.values(ProcessingStatus).includes(statusQuery as ProcessingStatus)) {
       whereClause.status = statusQuery as ProcessingStatus;

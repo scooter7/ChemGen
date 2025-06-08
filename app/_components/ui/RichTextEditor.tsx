@@ -28,11 +28,11 @@ interface MenuBarProps {
 }
 
 const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
-  if (!editor) {
-    return null;
-  }
-
+    
   const setLink = useCallback(() => {
+    if (!editor) {
+        return;
+    }
     const previousUrl = editor.getAttributes("link").href;
     const url = window.prompt("URL", previousUrl);
 
@@ -47,6 +47,10 @@ const MenuBar: React.FC<MenuBarProps> = ({ editor }) => {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 
+  if (!editor) {
+    return null;
+  }
+  
   const commonButtonClass =
     "p-1.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded disabled:opacity-50";
   const activeCommonButtonClass = "bg-indigo-500 text-white";

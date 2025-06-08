@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
-import { PrismaClient } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js'; // Supabase JS client
 import { nanoid } from 'nanoid'; // For generating unique filenames
 import { initPrisma } from '@/lib/prismaInit'; // Assuming you create this helper

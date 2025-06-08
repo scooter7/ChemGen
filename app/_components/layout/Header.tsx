@@ -3,15 +3,12 @@
 
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { UserCircle2 } from 'lucide-react'; // <<< ADD THIS IMPORT STATEMENT
+import { UserCircle2 } from 'lucide-react';
+import NextImage from 'next/image'; // Import NextImage
 
-// import { Menu } from 'lucide-react'; // For mobile menu toggle later
+// interface HeaderProps {} // Removed empty interface
 
-interface HeaderProps {
-  // onMenuButtonClick?: () => void; // For mobile sidebar toggle
-}
-
-export default function Header({}: HeaderProps) {
+export default function Header() {
   const { data: session } = useSession();
 
   return (
@@ -36,25 +33,18 @@ export default function Header({}: HeaderProps) {
           {session?.user && (
             <div className="flex items-center">
               {session.user.image ? (
-                <img 
+                <NextImage 
                   src={session.user.image} 
                   alt={session.user.name || "User avatar"} 
-                  className="h-8 w-8 rounded-full border-2 border-slate-300 dark:border-slate-600 object-cover" 
+                  className="rounded-full border-2 border-slate-300 dark:border-slate-600 object-cover" 
+                  width={32}
+                  height={32}
                 />
               ) : (
                 <UserCircle2 size={28} className="text-slate-600 dark:text-slate-400" /> 
               )}
             </div>
           )}
-
-          {/* Mobile menu button placeholder */}
-          {/* <button
-            // onClick={onMenuButtonClick}
-            className="md:hidden p-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-            aria-label="Open menu"
-          >
-            <Menu size={24} />
-          </button> */}
         </div>
       </div>
     </header>

@@ -2,12 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
-// import { PrismaClient } from '@prisma/client'; // Replaced by initPrisma
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { initPrisma } from '@/lib/prismaInit';
-import cuid from 'cuid'; // <<<< IMPORT CUID
+import cuid from 'cuid';
 
 const prisma = initPrisma(); 
 
@@ -16,7 +16,6 @@ if (typeof window === 'undefined') {
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;
-// ... (rest of initializations for supabaseAdmin, genAI, embeddingModel, BUCKET_NAME, chunkText)
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.error("CRITICAL: Supabase environment variables not set for processing route.");
@@ -53,8 +52,6 @@ export async function POST(
 ) {
   const { materialId } = context.params; 
 
-  // ... (initial checks for env vars, session, materialId, sourceMaterial lookup, status updates, file download, text extraction)
-  // --- All the code before the loop remains the same ---
   if (!supabaseUrl || !supabaseServiceRoleKey || !API_KEY) {
     return NextResponse.json({ message: 'Server configuration error for processing.' }, { status: 500 });
   }
@@ -117,7 +114,7 @@ export async function POST(
       for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: any) => item.str).join(' ') + "\n";
+        fullText += textContent.items.map((item: TextItem) => item.str).join(' ') + "\n";
       }
       extractedText = fullText;
       console.log(`Extracted ${pdfDocument.numPages} pages from PDF.`);
@@ -150,13 +147,12 @@ export async function POST(
       const embeddingValues = embeddingResponse.embedding.values;
       const embeddingString = `[${embeddingValues.join(',')}]`;
       
-      const newChunkId = cuid(); // <<< GENERATE CUID FOR THE NEW CHUNK
+      const newChunkId = cuid();
 
       await prisma.$executeRawUnsafe(
-        // Added "id" to the list of columns
         `INSERT INTO "DocumentChunk" ("id", "sourceMaterialId", "content", "embedding", "createdAt") 
-         VALUES ($1, $2, $3, $4::vector, NOW())`, // $1 is now newChunkId
-        newChunkId, // Pass the generated CUID
+         VALUES ($1, $2, $3, $4::vector, NOW())`,
+        newChunkId,
         materialId, 
         chunk, 
         embeddingString
@@ -173,7 +169,6 @@ export async function POST(
     return NextResponse.json({ message: `Successfully processed and indexed ${sourceMaterial.fileName}. ${chunksEmbeddedCount} chunks created.` }, { status: 200 });
 
   } catch (error) {
-    // ... (existing catch block remains the same)
     console.error(`Error processing material ${materialId || 'unknown'}:`, error);
     if (materialId) {
         try {

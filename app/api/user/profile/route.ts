@@ -7,7 +7,7 @@ import { PrismaClient, User } from '@prisma/client'; // Import User type
 const prisma = new PrismaClient();
 
 // Keep your existing GET function here:
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 

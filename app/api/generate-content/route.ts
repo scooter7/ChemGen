@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     // 1. Construct a detailed prompt for the Gemini LLM
     // This is where prompt engineering becomes very important.
     // You might want to build this string more dynamically.
-    let detailedPrompt = `
+    const detailedPrompt = `
       You are an AI assistant for Samford University, tasked with creating marketing content.
       Your persona should align with "The Inspirational and Confident Shepherd" brand archetype.
       If a dominant brand archetype is specified, lean into it: "${body.dominantArchetype || 'Inspirational and Confident Shepherd'}".
@@ -123,16 +123,13 @@ export async function POST(req: NextRequest) {
     let errorMessage = 'An unexpected error occurred while generating content.';
     if (error instanceof Error) {
         // You might want to check error.name or specific error types from the Gemini SDK
+        if (error.message.includes('SAFETY')) {
+            errorMessage = "The content could not be generated due to safety settings. Please revise your prompt.";
+            return NextResponse.json({ message: errorMessage, errorDetails: error }, { status: 400 });
+        }
         errorMessage = error.message;
     }
-     // If the error is from Gemini, it might have a `message` property
-     // or it could be a BlockedPromptError etc.
-     if ((error as any).message && (error as any).message.includes('SAFETY')) {
-        errorMessage = "The content could not be generated due to safety settings. Please revise your prompt.";
-        return NextResponse.json({ message: errorMessage, errorDetails: error }, { status: 400 });
-     }
-
-
+    
     return NextResponse.json(
       { message: 'Error processing content generation request.', error: errorMessage, errorDetails: error },
       { status: 500 }
