@@ -1,6 +1,5 @@
 // app/api/source-materials/[materialId]/process/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import type { RouteHandlerContext } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
@@ -43,7 +42,7 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   _request: NextRequest,
-  context: RouteHandlerContext
+  context: { params: { materialId: string } }
 ) {
   const { materialId } = context.params;
 
