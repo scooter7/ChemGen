@@ -36,9 +36,9 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { materialId: string } }
+  { params }: { params: Promise<{ materialId: string }> }
 ) {
-  const { materialId } = params;
+  const { materialId } = await params;
 
   try {
     // Dynamically import pdf-parse
