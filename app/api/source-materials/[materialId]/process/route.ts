@@ -15,12 +15,6 @@ declare module 'next-auth' {
   }
 }
 
-interface RouteContext {
-  params: {
-    materialId: string;
-  };
-}
-
 const prisma = initPrisma();
 
 // Supabase admin client
@@ -47,8 +41,8 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 }
 
 export async function POST(
-  _request: NextRequest, // Renamed as it's not used
-  { params }: RouteContext
+  _request: NextRequest,
+  { params }: { params: { materialId: string } }
 ) {
   const { materialId } = params;
 
@@ -74,7 +68,8 @@ export async function POST(
     });
 
     const { data: fileData, error } = await supabaseAdmin
-      .storage.from(BUCKET).download(src.storagePath);
+      .storage.from(BUCKET)
+      .download(src.storagePath);
     if (error || !fileData) {
       throw new Error(`Download failed: ${error?.message}`);
     }
@@ -91,7 +86,7 @@ export async function POST(
     }
 
     if (!text.trim()) {
-        throw new Error('No text could be extracted from the document.');
+      throw new Error('No text could be extracted from the document.');
     }
 
     const chunks = chunkText(text);
@@ -111,16 +106,18 @@ export async function POST(
     });
 
     return NextResponse.json({ message: `Processed ${src.fileName}` }, { status: 200 });
-
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
     console.error("Processing error:", errorMessage);
-    
+
     await prisma.sourceMaterial.update({
-        where: { id: materialId },
-        data: { status: 'FAILED' }
+      where: { id: materialId },
+      data: { status: 'FAILED' }
     }).catch(updateErr => console.error("Failed to update status to FAILED:", updateErr));
-    
-    return NextResponse.json({ message: 'Failed to process material', error: errorMessage }, { status: 500 });
+
+    return NextResponse.json(
+      { message: 'Failed to process material', error: errorMessage },
+      { status: 500 }
+    );
   }
 }
