@@ -1,7 +1,35 @@
 // app/api/source-materials/[materialId]/process/route.ts
+
+// Polyfill for DOMMatrix for Node.js environment
+if (typeof global.DOMMatrix === 'undefined') {
+  // A simple mock class to prevent the ReferenceError from pdfjs-dist
+  global.DOMMatrix = class {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+
+    constructor(init?: string | number[]) {
+        this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+        if (typeof init === 'string') {
+          // You can add more sophisticated parsing here if needed
+          const values = init.replace('matrix(', '').replace(')', '').split(',').map(Number);
+          [this.a, this.b, this.c, this.d, this.e, this.f] = values;
+        } else if (Array.isArray(init) && init.length === 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+        }
+    }
+    // Add other methods if the library requires them, but often just defining the class is enough
+    translate(tx: number, ty: number) { return this; }
+    scale(sx: number, sy: number) { return this; }
+  };
+}
+
+
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import type { DefaultSession } from 'next-auth';
+import { getServerSession, type DefaultSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
