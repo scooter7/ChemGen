@@ -8,6 +8,16 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
+import { type DefaultSession } from 'next-auth';
+
+// Augment the next-auth module to include the 'id' property
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
 
 const prisma = initPrisma(); 
 

@@ -1,8 +1,17 @@
 // app/api/content-history/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession, type DefaultSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions';
 import { initPrisma } from '@/lib/prismaInit';
+
+// Augment the next-auth module to include the 'id' property on the user object
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
 
 const prisma = initPrisma();
 

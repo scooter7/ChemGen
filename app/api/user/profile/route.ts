@@ -1,12 +1,20 @@
 // app/api/user/profile/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession, type DefaultSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
 import { PrismaClient, User } from '@prisma/client'; // Import User type
 
+// Augment the next-auth module to include the 'id' property
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
+
 const prisma = new PrismaClient();
 
-// Keep your existing GET function here:
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -50,14 +58,12 @@ export async function GET() {
   }
 }
 
-// --- ADD THE NEW PUT HANDLER BELOW ---
 interface UpdateProfileData {
   name?: string;
   department?: string;
   title?: string;
-  languages?: string[]; // Expecting an array of strings
+  languages?: string[];
   recruitmentRegion?: string;
-  // Add other fields that can be updated
 }
 
 export async function PUT(req: NextRequest) {
@@ -71,10 +77,8 @@ export async function PUT(req: NextRequest) {
     const userId = session.user.id;
     const body = await req.json() as UpdateProfileData;
 
-    // Basic validation (you can add more sophisticated validation, e.g., with Zod)
     const { name, department, title, languages, recruitmentRegion } = body;
 
-    // Ensure languages is an array of strings if provided
     if (languages && !Array.isArray(languages)) {
         return NextResponse.json({ message: 'Languages must be an array of strings.' }, { status: 400 });
     }
@@ -82,12 +86,11 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ message: 'Each language must be a string.' }, { status: 400 });
     }
 
-
     const updatedData: Partial<User> = {};
     if (name !== undefined) updatedData.name = name;
     if (department !== undefined) updatedData.department = department;
     if (title !== undefined) updatedData.title = title;
-    if (languages !== undefined) updatedData.languages = languages; // Prisma expects string[] for this field
+    if (languages !== undefined) updatedData.languages = languages;
     if (recruitmentRegion !== undefined) updatedData.recruitmentRegion = recruitmentRegion;
 
     if (Object.keys(updatedData).length === 0) {
@@ -97,7 +100,7 @@ export async function PUT(req: NextRequest) {
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updatedData,
-      select: { // Return the updated profile, excluding sensitive data
+      select: {
         id: true,
         name: true,
         email: true,

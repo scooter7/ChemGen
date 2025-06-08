@@ -5,6 +5,16 @@ import { authOptions } from '@/lib/authOptions';
 import { initPrisma } from '@/lib/prismaInit';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ImageResource } from '@prisma/client'; // Import ImageResource type
+import { type DefaultSession } from 'next-auth';
+
+// Augment the next-auth module to include the 'id' property
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
 
 const prisma = initPrisma();
 

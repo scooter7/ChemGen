@@ -6,6 +6,16 @@ import { initPrisma } from '@/lib/prismaInit';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI, Part } from '@google/generative-ai'; // Import Part
 import { nanoid } from 'nanoid';
+import { type DefaultSession } from 'next-auth';
+
+// Augment the next-auth module to include the 'id' property
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
 
 const prisma = initPrisma();
 

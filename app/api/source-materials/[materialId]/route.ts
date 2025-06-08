@@ -4,6 +4,16 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
 import { initPrisma } from '@/lib/prismaInit';
 import { createClient } from '@supabase/supabase-js';
+import { type DefaultSession } from 'next-auth';
+
+// Augment the next-auth module to include the 'id' property
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
 
 const prisma = initPrisma();
 

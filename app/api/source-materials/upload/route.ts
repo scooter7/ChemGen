@@ -5,6 +5,16 @@ import { authOptions } from '@/lib/authOptions'; // Adjust path if needed
 import { createClient } from '@supabase/supabase-js'; // Supabase JS client
 import { nanoid } from 'nanoid'; // For generating unique filenames
 import { initPrisma } from '@/lib/prismaInit'; // Assuming you create this helper
+import { type DefaultSession } from 'next-auth';
+
+// Augment the next-auth module to include the 'id' property
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
 
 const prisma = initPrisma(); // Use initialized Prisma client
 
