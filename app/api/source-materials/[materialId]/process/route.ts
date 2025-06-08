@@ -24,6 +24,14 @@ if (typeof global.DOMMatrix === 'undefined') {
     translate(tx: number, ty: number) { return this; }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     scale(sx: number, sy: number) { return this; }
+
+    // Add missing static methods to satisfy the type checker
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    static fromFloat32Array(array32: Float32Array) { return new this(); }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    static fromFloat64Array(array64: Float64Array) { return new this(); }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    static fromMatrix(other?: any) { return new this(); }
   };
 }
 
