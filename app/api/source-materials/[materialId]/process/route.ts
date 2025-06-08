@@ -20,12 +20,12 @@ if (typeof global.DOMMatrix === 'undefined') {
       }
     }
 
+    // Prevent unused-var errors
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     translate(tx: number, ty: number) { return this; }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     scale(sx: number, sy: number) { return this; }
 
-    // Disable unused-vars for polyfill static methods
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     static fromFloat32Array(array32: Float32Array) { return new this(); }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -90,9 +90,9 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
 
 export async function POST(
   _req: NextRequest,
-  { params }: { params: Record<string, string> }
+  context
 ) {
-  const materialId = params.materialId;
+  const { materialId } = context.params;
 
   if (!supabaseUrl || !supabaseServiceRoleKey || !API_KEY) {
     return NextResponse.json({ message: 'Server configuration error for processing.' }, { status: 500 });
@@ -175,15 +175,13 @@ export async function POST(
       );
     }
 
-    await prisma.sourceMaterial.update({
-      where: { id: materialId }, data: { status: 'INDEXED', processedAt: new Date() }
-    });
+    await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'INDEXED', processedAt: new Date() } });
 
     return NextResponse.json({ message: `Successfully processed ${sourceMaterial.fileName}.` }, { status: 200 });
 
   } catch (error) {
     console.error(error);
-    await prisma.sourceMaterial.update({ where: { id: params.materialId }, data: { status: 'FAILED', processedAt: new Date() } });
+    await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date() } });
     return NextResponse.json({ message: 'Processing failed.', error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
