@@ -1,5 +1,4 @@
 // app/api/source-materials/[materialId]/process/route.ts
-import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
@@ -8,7 +7,6 @@ import pdf from 'pdf-parse';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
 
-// Augment NextAuth Session to include user.id
 declare module 'next-auth' {
   interface Session {
     user: { id: string } & DefaultSession['user'];
@@ -16,17 +14,12 @@ declare module 'next-auth' {
 }
 
 const prisma = initPrisma();
-
-// Supabase admin client
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-// Google Generative AI setup
 const GEMINI_KEY = process.env.GEMINI_API_KEY!;
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-
 const BUCKET = 'source-materials';
 
 function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
@@ -41,22 +34,28 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 }
 
 export async function POST(
-  _request: NextRequest,
-  { params }: { params: Record<string, string> }
+  _request: Request,
+  context: { params: { materialId: string } }
 ) {
-  const materialId = params.materialId;
+  const { materialId } = context.params;
 
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const src = await prisma.sourceMaterial.findUnique({
       where: { id: materialId, userId: session.user.id }
     });
     if (!src) {
-      return NextResponse.json({ message: 'Not found or access denied' }, { status: 404 });
+      return new Response(JSON.stringify({ message: 'Not found or access denied' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     if (['INDEXED', 'PROCESSING'].includes(src.status)) {
@@ -108,7 +107,10 @@ export async function POST(
       data: { status: 'INDEXED', processedAt: new Date() }
     });
 
-    return NextResponse.json({ message: `Processed ${src.fileName}` }, { status: 200 });
+    return new Response(JSON.stringify({ message: `Processed ${src.fileName}` }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -119,9 +121,12 @@ export async function POST(
       data: { status: 'FAILED' }
     }).catch(updateErr => console.error("Failed to update status to FAILED:", updateErr));
 
-    return NextResponse.json(
-      { message: 'Failed to process material', error: errorMessage },
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({
+      message: 'Failed to process material',
+      error: errorMessage
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
