@@ -1,4 +1,5 @@
 // app/api/source-materials/[materialId]/process/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
@@ -6,6 +7,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
 
+// Augment NextAuth Session to include user.id
 declare module 'next-auth' {
   interface Session {
     user: { id: string } & DefaultSession['user'];
@@ -32,33 +34,32 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   return chunks.filter(c => c.trim().length > 10);
 }
 
+interface RouteContext {
+    params: {
+      materialId: string;
+    };
+}
+  
 export async function POST(
-  _request: Request,
-  context: unknown
+  _request: NextRequest,
+  context: RouteContext,
 ) {
-  const { params } = context as { params: Record<string, string> };
-  const materialId = params.materialId;
-
-  // load pdf-parse at runtime only
-  const { default: pdf } = await import('pdf-parse');
+  const { materialId } = context.params;
 
   try {
+    // Dynamically import pdf-parse
+    const pdf = (await import('pdf-parse')).default;
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     const src = await prisma.sourceMaterial.findUnique({
       where: { id: materialId, userId: session.user.id }
     });
     if (!src) {
-      return new Response(JSON.stringify({ message: 'Not found or access denied' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return NextResponse.json({ message: 'Not found or access denied' }, { status: 404 });
     }
 
     if (['INDEXED', 'PROCESSING'].includes(src.status)) {
@@ -110,10 +111,7 @@ export async function POST(
       data: { status: 'INDEXED', processedAt: new Date() }
     });
 
-    return new Response(JSON.stringify({ message: `Processed ${src.fileName}` }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json({ message: `Processed ${src.fileName}` }, { status: 200 });
 
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -124,12 +122,11 @@ export async function POST(
       data: { status: 'FAILED' }
     }).catch(updateErr => console.error("Failed to update status to FAILED:", updateErr));
 
-    return new Response(JSON.stringify({
+    return NextResponse.json({
       message: 'Failed to process material',
       error: errorMessage
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    }, {
+      status: 500
     });
   }
 }
