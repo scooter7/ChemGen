@@ -118,9 +118,7 @@ export async function POST(
       await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
     }
 
-    await prisma.sourceMaterial.update({
-      where: { id: materialId }, data: { status: 'PROCESSING', processedAt: new Date() }
-    });
+    await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'PROCESSING', processedAt: new Date() } });
 
     const { data: fileData, error: downloadError } = await supabaseAdmin
       .storage
@@ -154,7 +152,8 @@ export async function POST(
       return NextResponse.json({ message: `Unsupported file type: ${sourceMaterial.fileType}` }, { status: 400 });
     }
 
-    if (!extractedText.trim()) {\n      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." } });
+    if (!extractedText.trim()) {
+      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." } });
       return NextResponse.json({ message: 'No text content found.' }, { status: 400 });
     }
 
