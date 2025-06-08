@@ -2,7 +2,6 @@
 
 // Polyfill for DOMMatrix for Node.js environment
 if (typeof global.DOMMatrix === 'undefined') {
-  // A simple mock class to prevent the ReferenceError from pdfjs-dist
   global.DOMMatrix = class {
     a: number;
     b: number;
@@ -26,11 +25,10 @@ if (typeof global.DOMMatrix === 'undefined') {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     scale(sx: number, sy: number) { return this; }
 
-    // Add missing static methods to satisfy the type checker
-    static fromFloat32Array(array32: Float32Array) { return new this(); }
-    static fromFloat64Array(array64: Float64Array) { return new this(); }
-    // Use unknown instead of any
-    static fromMatrix(other?: unknown) { return new this(); }
+    // Add missing static methods to satisfy the type checker, prefix unused params with _
+    static fromFloat32Array(_array32: Float32Array) { return new this(); }
+    static fromFloat64Array(_array64: Float64Array) { return new this(); }
+    static fromMatrix(_other?: unknown) { return new this(); }
   } as unknown as typeof DOMMatrix;
 }
 
@@ -46,9 +44,7 @@ import cuid from 'cuid';
 // Augment the next-auth module to include the 'id' property
 declare module 'next-auth' {
   interface Session {
-    user: {
-      id: string;
-    } & DefaultSession['user'];
+    user: { id: string } & DefaultSession['user'];
   }
 }
 
@@ -104,25 +100,19 @@ export async function POST(
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
-    const userId = session.user.id;
-
-    if (!materialId) {
-      return NextResponse.json({ message: 'Material ID is required.' }, { status: 400 });
-    }
 
     const sourceMaterial = await prisma.sourceMaterial.findUnique({
-      where: { id: materialId, userId: userId },
+      where: { id: materialId, userId: session.user.id },
     });
-
     if (!sourceMaterial) {
       return NextResponse.json({ message: 'Source material not found or access denied.' }, { status: 404 });
     }
-    
+
     if (sourceMaterial.status === 'INDEXED' || sourceMaterial.status === 'PROCESSING') {
       console.log(`Material ${materialId} status is ${sourceMaterial.status}. Re-processing: Deleting old chunks.`);
-      await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId }});
+      await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
     }
-    
+
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'PROCESSING', processedAt: new Date() },
@@ -139,7 +129,7 @@ export async function POST(
     if (!fileData) {
       throw new Error('No file data downloaded from Supabase.');
     }
-        
+
     const fileArrayBuffer = await fileData.arrayBuffer();
     let extractedText = "";
 
@@ -150,46 +140,44 @@ export async function POST(
       for (let i = 1; i <= pdfDocument.numPages; i++) {
         const page = await pdfDocument.getPage(i);
         const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item) => ('str' in item ? item.str : '')).join(' ') + "\n";
+        fullText += textContent.items.map(item => ('str' in item ? item.str : '')).join(' ') + "\n";
       }
       extractedText = fullText;
     } else if (sourceMaterial.fileType?.startsWith('text/')) {
       extractedText = Buffer.from(fileArrayBuffer).toString('utf-8');
     } else {
-      await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED', processedAt: new Date() }});
-      return NextResponse.json({ message: `Unsupported file type for processing: ${sourceMaterial.fileType}` }, { status: 400 });
+      await prisma.sourceMaterial.update({
+        where: { id: materialId },
+        data: { status: 'FAILED', processedAt: new Date() }
+      });
+      return NextResponse.json({ message: `Unsupported file type: ${sourceMaterial.fileType}` }, { status: 400 });
     }
 
-    if (!extractedText || !extractedText.trim()) {
+    if (!extractedText.trim()) {
       await prisma.sourceMaterial.update({
         where: { id: materialId },
         data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " No text content found." }
       });
-      return NextResponse.json({ message: 'No text content found in the document.' }, { status: 400 });
+      return NextResponse.json({ message: 'No text content found.' }, { status: 400 });
     }
 
     const textChunks = chunkText(extractedText);
-
     if (textChunks.length === 0) {
       await prisma.sourceMaterial.update({
         where: { id: materialId },
         data: { status: 'FAILED', processedAt: new Date(), description: (sourceMaterial.description || "") + " Failed to chunk document." }
       });
-      return NextResponse.json({ message: 'Failed to chunk document, no content to process.' }, { status: 400 });
+      return NextResponse.json({ message: 'Failed to chunk document.' }, { status: 400 });
     }
 
     for (const chunk of textChunks) {
       if (!chunk.trim()) continue;
-
       const embeddingResponse = await embeddingModel.embedContent(chunk);
       const embeddingValues = embeddingResponse.embedding.values;
       const embeddingString = `[${embeddingValues.join(',')}]`;
-
       const newChunkId = cuid();
-
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "DocumentChunk" ("id", "sourceMaterialId", "content", "embedding", "createdAt") 
-         VALUES ($1, $2, $3, $4::vector, NOW())`,
+        `INSERT INTO "DocumentChunk" ("id","sourceMaterialId","content","embedding","createdAt") VALUES ($1,$2,$3,$4::vector,NOW())`,
         newChunkId,
         materialId,
         chunk,
@@ -199,22 +187,17 @@ export async function POST(
 
     await prisma.sourceMaterial.update({
       where: { id: materialId },
-      data: { status: 'INDEXED', processedAt: new Date() },
+      data: { status: 'INDEXED', processedAt: new Date() }
     });
 
-    return NextResponse.json({ message: `Successfully processed and indexed ${sourceMaterial.fileName}.` }, { status: 200 });
+    return NextResponse.json({ message: `Successfully processed ${sourceMaterial.fileName}.` }, { status: 200 });
 
   } catch (error) {
-    if (params.materialId) {
-      try {
-        await prisma.sourceMaterial.update({
-          where: { id: params.materialId },
-          data: { status: 'FAILED', processedAt: new Date() },
-        });
-      } catch (statusUpdateError) {
-        console.error("Failed to update material status to FAILED:", statusUpdateError);
-      }
-    }
-    return NextResponse.json({ message: 'Failed to process material.', error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    console.error(error);
+    await prisma.sourceMaterial.update({
+      where: { id: params.materialId },
+      data: { status: 'FAILED', processedAt: new Date() }
+    });
+    return NextResponse.json({ message: 'Processing failed.', error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
