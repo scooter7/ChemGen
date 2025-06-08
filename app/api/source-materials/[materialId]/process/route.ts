@@ -35,7 +35,7 @@ if (typeof global.DOMMatrix === 'undefined') {
   } as unknown as typeof DOMMatrix;
 }
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, type RouteHandlerContext } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
@@ -92,7 +92,7 @@ function chunkText(text: string, chunkSize: number = 1500, overlap: number = 200
 
 export async function POST(
   _req: NextRequest,
-  context
+  context: RouteHandlerContext<{ materialId: string }>
 ) {
   const { materialId } = context.params;
 
