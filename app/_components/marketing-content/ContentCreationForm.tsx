@@ -30,6 +30,7 @@ import {
   Loader2,
   UploadCloud,
   Layers,
+  Save, // Import Save Icon
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -176,6 +177,7 @@ export default function ContentCreationForm() {
     sourceMaterials: [],
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingHistory, setIsSavingHistory] = useState(false); // New state for saving history
   const [generatedData, setGeneratedData] =
     useState<GeneratedData | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -492,6 +494,41 @@ export default function ContentCreationForm() {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveToHistory = async () => {
+    if (!generatedData) {
+        setGeneralStatusMessage({ type: 'error', text: 'No content to save.' });
+        return;
+    }
+    setIsSavingHistory(true);
+    setGeneralStatusMessage({ type: 'info', text: 'Saving to history...' });
+
+    try {
+        const response = await fetch('/api/content-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                promptText: formData.prompt,
+                audience: formData.audience,
+                mediaType: formData.mediaType,
+                generatedBodyHtml: editableContent,
+                justification: generatedData.justification,
+            }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save to history.');
+        }
+        setGeneralStatusMessage({ type: 'success', text: 'Content saved to history!' });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+        setGeneralStatusMessage({ type: 'error', text: `Save failed: ${message}` });
+    } finally {
+        setIsSavingHistory(false);
+        // Hide the message after a few seconds
+        setTimeout(() => setGeneralStatusMessage(null), 4000);
     }
   };
 
@@ -1047,6 +1084,17 @@ export default function ContentCreationForm() {
         </div>
       )}
 
+      {/* General Status Message */}
+      {generalStatusMessage && (
+        <div className={`mt-4 p-3 rounded-md text-sm font-medium ${
+            generalStatusMessage.type === 'error' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' : 
+            generalStatusMessage.type === 'success' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 
+            'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+        }`}>
+          {generalStatusMessage.text}
+        </div>
+      )}
+      
       {/* Display Generated Content, Justification, Segmentation, and Image Recommendation Section */}
       {generatedData && !apiError && (
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-6">
@@ -1074,11 +1122,20 @@ export default function ContentCreationForm() {
               </h3>
               <div className="flex space-x-2">
                 <button
+                  onClick={handleSaveToHistory}
+                  disabled={isSavingHistory}
+                  className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-md flex items-center disabled:opacity-50"
+                  title="Save to history"
+                >
+                  {isSavingHistory ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
+                  {isSavingHistory ? "Saving..." : "Save"}
+                </button>
+                <button
                   onClick={() => {
                     if (editableContent) {
                       navigator.clipboard
                         .writeText(editableContent)
-                        .then(() => alert("Content copied!"))
+                        .then(() => setGeneralStatusMessage({ type: 'success', text: 'Content copied!' }))
                         .catch((err) =>
                           console.error("Copy failed: ", err)
                         );
