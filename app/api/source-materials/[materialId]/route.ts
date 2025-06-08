@@ -19,8 +19,9 @@ const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey ? createClient(supab
 const BUCKET_NAME = 'source-materials';
 
 export async function DELETE(
-  req: NextRequest,
-  context: { params: { materialId: string } }
+  _req: NextRequest, // The request object is not used, so it's prefixed with _
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: any
 ) {
   if (!supabaseAdmin) {
     return NextResponse.json({ message: 'Supabase client not configured on server.' }, { status: 500 });
@@ -66,8 +67,7 @@ export async function DELETE(
         // Log the error but proceed to delete from DB if desired, or handle more strictly
         console.error('Error deleting file from Supabase Storage:', deleteStorageError.message);
         // Depending on policy, you might choose to not delete the DB record if storage deletion fails.
-        // For now, we'll proceed to delete the DB record even if storage deletion has an issue,
-        // to avoid orphaned DB entries if the file was somehow already gone from storage.
+        // For now, we'll proceed to delete the DB record even if the file was somehow already gone from storage.
         // A more robust solution might involve a soft delete or retry mechanism for storage.
       } else {
         console.log(`Successfully deleted from Supabase Storage: ${sourceMaterialToDelete.storagePath}`);
