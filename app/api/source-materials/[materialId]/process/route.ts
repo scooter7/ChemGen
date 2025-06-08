@@ -53,7 +53,7 @@ export async function POST(
 ) {
   const { materialId } = params;
 
-  // Use require for pdf-parse to ensure correct module loading on server
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const pdf = require('pdf-parse');
 
   try {
