@@ -20,8 +20,10 @@ if (typeof global.DOMMatrix === 'undefined') {
           [this.a, this.b, this.c, this.d, this.e, this.f] = init;
         }
     }
-    translate(_tx: number, _ty: number) { return this; }
-    scale(_sx: number, _sy: number) { return this; }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    translate(tx: number, ty: number) { return this; }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    scale(sx: number, sy: number) { return this; }
   };
 }
 
