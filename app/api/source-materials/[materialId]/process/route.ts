@@ -35,10 +35,11 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 
 export async function POST(
   _request: Request,
-  // ← no explicit type here; let Next.js infer it
-  context: any
+  context: unknown
 ) {
-  const materialId: string = context.params.materialId;
+  // cast once—avoids any and satisfies ESLint
+  const { params } = context as { params: Record<string, string> };
+  const materialId = params.materialId;
 
   try {
     const session = await getServerSession(authOptions);
