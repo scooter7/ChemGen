@@ -4,6 +4,7 @@ import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+// We will import pdf-parse inside the function using require
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
 
@@ -14,13 +15,25 @@ declare module 'next-auth' {
   }
 }
 
+// Define the structure of the route's context parameter
+interface RouteContext {
+  params: {
+    materialId: string;
+  };
+}
+
 const prisma = initPrisma();
+
+// Supabase admin client
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+// Google Generative AI setup
 const GEMINI_KEY = process.env.GEMINI_API_KEY!;
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+
 const BUCKET = 'source-materials';
 
 function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
@@ -35,15 +48,15 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
 }
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ materialId: string }> }
+  _request: NextRequest,
+  { params }: RouteContext
 ) {
-  const { materialId } = await params;
+  const { materialId } = params;
+
+  // Use require for pdf-parse to ensure correct module loading on server
+  const pdf = require('pdf-parse');
 
   try {
-    // Dynamically import pdf-parse
-    const pdf = (await import('pdf-parse')).default;
-
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -59,33 +72,16 @@ export async function POST(
     if (['INDEXED', 'PROCESSING'].includes(src.status)) {
       await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
     }
-
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'PROCESSING', processedAt: new Date() }
     });
 
-    // Validate storagePath
-    if (src.storagePath.startsWith('./') || src.storagePath.startsWith('../') || src.storagePath.includes('test/data')) {
-      console.error(`Invalid storagePath for materialId ${materialId}: ${src.storagePath}. Path appears to be local or test data.`);
-      await prisma.sourceMaterial.update({
-        where: { id: materialId },
-        data: { status: 'FAILED', processedAt: new Date() }
-      });
-      return NextResponse.json({
-        message: 'Failed to process material due to invalid storage path format.',
-        error: `Invalid storagePath: ${src.storagePath}. Path appears to be local or test data.`
-      }, { status: 400 });
-    }
-
     const { data: fileData, error } = await supabaseAdmin
-      .storage.from(BUCKET)
-      .download(src.storagePath);
-
+      .storage.from(BUCKET).download(src.storagePath);
     if (error || !fileData) {
       throw new Error(`Download failed: ${error?.message}`);
     }
-
     const fileBuffer = Buffer.from(await fileData.arrayBuffer());
 
     let text = '';
@@ -99,7 +95,7 @@ export async function POST(
     }
 
     if (!text.trim()) {
-      throw new Error('No text could be extracted from the document.');
+        throw new Error('No text could be extracted from the document.');
     }
 
     const chunks = chunkText(text);
@@ -123,17 +119,12 @@ export async function POST(
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
     console.error("Processing error:", errorMessage);
-
+    
     await prisma.sourceMaterial.update({
-      where: { id: materialId },
-      data: { status: 'FAILED' }
+        where: { id: materialId },
+        data: { status: 'FAILED' }
     }).catch(updateErr => console.error("Failed to update status to FAILED:", updateErr));
-
-    return NextResponse.json({
-      message: 'Failed to process material',
-      error: errorMessage
-    }, {
-      status: 500
-    });
+    
+    return NextResponse.json({ message: 'Failed to process material', error: errorMessage }, { status: 500 });
   }
 }
