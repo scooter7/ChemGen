@@ -36,6 +36,7 @@
     "@tailwindcss/typography": "^0.5.16",
     "@types/bcrypt": "^5.0.2",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
