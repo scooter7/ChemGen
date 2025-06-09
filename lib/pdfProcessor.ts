@@ -1,28 +1,33 @@
 // lib/pdfProcessor.ts
 
-import pdf from 'pdf-parse';
-
-export interface PdfData {
-  text: string;
-  numpages: number;
-  numrender: number;
-  info: Record<string, unknown>;
-  metadata: Record<string, unknown>;
-  version: string;
-}
+import fs from 'fs';
+import path from 'path';
+import pdfParse from 'pdf-parse';
 
 /**
- * Parse a PDF file buffer and return its extracted text and metadata.
+ * Extracts text from a PDF buffer or file-path.
  *
- * @param buffer - A Buffer containing the raw PDF bytes.
- * @returns A PdfData object with text, page count, and metadata.
+ * @param input  – Buffer (e.g. from Supabase.download) or string path to PDF.
+ * @returns      – { text: string } from pdf-parse
  */
-export async function extractPdfData(buffer: Buffer): Promise<PdfData> {
-  try {
-    const data = (await pdf(buffer)) as PdfData;
-    return data;
-  } catch (error) {
-    console.error('PDF parsing error:', error);
-    throw new Error('Failed to parse PDF');
+export async function extractPdfData(
+  input: Buffer | string
+): Promise<{ text: string }> {
+  let dataBuffer: Buffer;
+
+  if (Buffer.isBuffer(input)) {
+    // direct buffer (production route)
+    dataBuffer = input;
+  } else {
+    // string path (e.g. manual tests or debug)
+    // resolve relative to project root
+    const filePath = path.isAbsolute(input)
+      ? input
+      : path.join(process.cwd(), input);
+
+    dataBuffer = await fs.promises.readFile(filePath);
   }
+
+  const { text } = await pdfParse(dataBuffer);
+  return { text };
 }
