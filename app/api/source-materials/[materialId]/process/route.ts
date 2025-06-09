@@ -46,10 +46,9 @@ export async function POST(
     // 5️⃣ Persist chunks + update status in one transaction
     await prisma.$transaction([
       prisma.documentChunk.createMany({
-        data: chunks.map((chunk, idx) => ({
+        data: chunks.map((chunk) => ({
           sourceMaterialId: materialId,
-          chunkIndex: idx,
-          text: chunk,
+          content: chunk,
         })),
       }),
       prisma.sourceMaterial.update({
@@ -63,7 +62,6 @@ export async function POST(
 
     return NextResponse.json({ success: true, materialId });
   } catch (err: unknown) {
-    // Safely extract error message from unknown
     const message =
       err instanceof Error
         ? err.message
