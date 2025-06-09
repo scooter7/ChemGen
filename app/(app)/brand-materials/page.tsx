@@ -10,9 +10,9 @@ import {
     RefreshCw, 
     Loader2
 } from 'lucide-react';
+import * as pdfjs from 'pdfjs-dist';
 
-// We will import pdfjs dynamically inside a useEffect hook to avoid server-side rendering issues.
-// import * as pdfjs from 'pdfjs-dist'; <-- DO NOT IMPORT HERE
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.mjs`;
 
 interface SourceMaterial {
   id: string;
@@ -26,18 +26,19 @@ export default function BrandMaterialsPage() {
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState<string>("");
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
+  
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [pdfjs, setPdfjs] = useState<any>(null); // State to hold the pdfjs module
+  const [pdfjs, setPdfjs] = useState<any>(null);
 
-  // Dynamically load pdfjs-dist only on the client-side
   useEffect(() => {
     import('pdfjs-dist').then(pdfjsModule => {
       pdfjsModule.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsModule.version}/pdf.worker.mjs`;
@@ -130,14 +131,18 @@ export default function BrandMaterialsPage() {
     const uploadFormData = new FormData();
     uploadFormData.append('file', selectedFile);
     if (fileDescription) uploadFormData.append('description', fileDescription);
-    if (extractedText) uploadFormData.append('extractedText', extractedText);
+    
+    // THE FIX: Always send extractedText if it's not null (even if it's an empty string)
+    if (extractedText !== null) {
+      uploadFormData.append('extractedText', extractedText);
+    }
 
     try {
       const response = await fetch('/api/source-materials/upload', { method: 'POST', body: uploadFormData });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'File upload failed.');
       
-      setStatusMessage({type: 'success', text: `Success: "${result.sourceMaterial.fileName}" was uploaded and indexed!`});
+      setStatusMessage({type: 'success', text: result.message});
       
       setSelectedFile(null);
       setFileDescription("");

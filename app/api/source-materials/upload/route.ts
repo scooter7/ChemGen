@@ -45,7 +45,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'No file provided.' }, { status: 400 });
     }
 
-    // 1. Upload the original file to Supabase Storage
     const uniqueSuffix = nanoid(8);
     const filePathInBucket = `${userId}/${file.name}-${uniqueSuffix}`;
 
@@ -58,14 +57,11 @@ export async function POST(req: NextRequest) {
       throw new Error(uploadError.message || 'Failed to upload file to Supabase.');
     }
 
-    // 2. Use a Prisma transaction to create all database records atomically
     const newSourceMaterial = await prisma.$transaction(async (tx) => {
+      // THE FIX: Determine status based on whether a processing attempt was made for a PDF
+      const wasProcessingAttempted = file.type === 'application/pdf' && extractedText !== null;
+      const chunks = extractedText ? chunkText(extractedText) : [];
       
-      // NEW: Determine status based on if text was extracted and chunked
-      const chunks = extractedText ? chunkText(extractedText, 1000) : [];
-      const wasIndexed = chunks.length > 0;
-      
-      // Create the SourceMaterial record with the correct status
       const material = await tx.sourceMaterial.create({
         data: {
           userId: userId,
@@ -74,14 +70,14 @@ export async function POST(req: NextRequest) {
           storagePath: uploadData.path, 
           description: description,
           fileSize: file.size,
-          // Conditionally set status and processedAt
-          status: wasIndexed ? 'INDEXED' : 'UPLOADED',
-          processedAt: wasIndexed ? new Date() : null,
+          // If a PDF was processed (even if no text was found), status is INDEXED.
+          // Otherwise, it's just UPLOADED.
+          status: wasProcessingAttempted ? 'INDEXED' : 'UPLOADED',
+          processedAt: wasProcessingAttempted ? new Date() : null,
         },
       });
 
-      // Only create chunks if they exist
-      if (wasIndexed) {
+      if (chunks.length > 0) {
         await tx.documentChunk.createMany({
           data: chunks.map(chunkContent => ({
             sourceMaterialId: material.id,
@@ -95,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     const message = newSourceMaterial.status === 'INDEXED'
       ? 'File uploaded and indexed successfully!'
-      : 'File uploaded but could not be indexed (no text content found).';
+      : 'File uploaded and stored.';
 
     return NextResponse.json(
       { message: message, sourceMaterial: newSourceMaterial }, 
