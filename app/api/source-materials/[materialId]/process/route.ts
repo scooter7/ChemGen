@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
-import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { initPrisma } from '@/lib/prismaInit';
 import cuid from 'cuid';
+import { extractTextFromSource } from '@/lib/pdfProcessor'; // Import the new helper
 
 // Augment NextAuth Session to include user.id
 declare module 'next-auth' {
@@ -14,7 +14,6 @@ declare module 'next-auth' {
   }
 }
 
-// Define the structure of the route's context parameter
 interface RouteContext {
   params: {
     materialId: string;
@@ -23,17 +22,9 @@ interface RouteContext {
 
 const prisma = initPrisma();
 
-// Supabase admin client
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-// Google Generative AI setup
 const GEMINI_KEY = process.env.GEMINI_API_KEY!;
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
-
-const BUCKET = 'source-materials';
 
 function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   const chunks: string[] = [];
@@ -53,9 +44,6 @@ export async function POST(
   const { materialId } = params;
 
   try {
-    // Dynamically import pdf-parse at runtime
-    const pdf = (await import('pdf-parse')).default;
-
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -68,34 +56,13 @@ export async function POST(
       return NextResponse.json({ message: 'Not found or access denied' }, { status: 404 });
     }
 
-    if (['INDEXED', 'PROCESSING'].includes(src.status)) {
-      await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
-    }
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'PROCESSING', processedAt: new Date() }
     });
 
-    const { data: fileData, error } = await supabaseAdmin
-      .storage.from(BUCKET).download(src.storagePath);
-    if (error || !fileData) {
-      throw new Error(`Download failed: ${error?.message}`);
-    }
-    const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-
-    let text = '';
-    if (src.fileType === 'application/pdf') {
-      const pdfData = await pdf(fileBuffer);
-      text = pdfData.text;
-    } else if (src.fileType?.startsWith('text/')) {
-      text = fileBuffer.toString('utf-8');
-    } else {
-      throw new Error(`Unsupported file type: ${src.fileType}`);
-    }
-
-    if (!text.trim()) {
-        throw new Error('No text could be extracted from the document.');
-    }
+    // Use the helper function to get the text
+    const text = await extractTextFromSource(src);
 
     const chunks = chunkText(text);
     for (const chunk of chunks) {
