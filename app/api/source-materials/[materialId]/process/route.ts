@@ -12,7 +12,8 @@ const prisma = initPrisma();
 
 export async function POST(
   request: NextRequest,
-  context: any // Using 'any' to bypass the build error, consistent with other routes.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  context: any // Using 'any' with an ESLint disable comment to fix the build error
 ): Promise<NextResponse> {
   const { materialId } = context.params;
 
