@@ -40,7 +40,6 @@ function chunkText(text: string, chunkSize = 1500, overlap = 200): string[] {
   return chunks.filter(c => c.trim().length > 10);
 }
 
-// Use the simplest possible signature to avoid Vercel build errors
 export async function POST(
   _request: NextRequest,
   { params }: { params: { materialId: string } }
@@ -60,6 +59,9 @@ export async function POST(
       return NextResponse.json({ message: 'Not found or access denied' }, { status: 404 });
     }
 
+    if (['INDEXED', 'PROCESSING'].includes(src.status)) {
+      await prisma.documentChunk.deleteMany({ where: { sourceMaterialId: materialId } });
+    }
     await prisma.sourceMaterial.update({
       where: { id: materialId },
       data: { status: 'PROCESSING', processedAt: new Date() }
