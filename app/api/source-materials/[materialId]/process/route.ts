@@ -14,7 +14,7 @@ export async function POST(
 ): Promise<NextResponse> {
   const { materialId } = await params;
 
-  // 0️⃣ Dynamically load Supabase client at runtime
+  // 1️⃣ Dynamically load Supabase
   const { createClient } = await import('@supabase/supabase-js');
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,32 +23,32 @@ export async function POST(
   }
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // 1️⃣ Dynamically load PDF parser
-  const { extractPdfData } = await import('@/lib/pdfProcessor');
+  // 2️⃣ Dynamically load pdf-parse right here
+  const { default: pdfParse } = await import('pdf-parse');
 
   try {
-    // 2️⃣ Fetch storagePath from DB
+    // Fetch storagePath…
     const sm = await prisma.sourceMaterial.findUnique({
       where: { id: materialId },
       select: { storagePath: true },
     });
     if (!sm) throw new Error('SourceMaterial not found');
 
-    // 3️⃣ Download PDF blob
-    const { data: file, error: downloadError } = await supabase
+    // Download PDF…
+    const { data: file, error: dlErr } = await supabase
       .storage
       .from('source-materials')
       .download(sm.storagePath);
-    if (downloadError || !file) throw downloadError ?? new Error('Download failed');
+    if (dlErr || !file) throw dlErr ?? new Error('Download failed');
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // Turn into Buffer
+    const buffer = Buffer.from(await file.arrayBuffer());
 
-    // 4️⃣ Extract text & chunk it
-    const { text } = await extractPdfData(buffer);
+    // Parse text directly—**no test-data fallback**
+    const { text } = await pdfParse(buffer);
+
+    // Chunk and persist
     const chunks = chunkText(text);
-
-    // 5️⃣ Persist chunks + update status
     await prisma.$transaction([
       prisma.documentChunk.createMany({
         data: chunks.map((c) => ({
@@ -58,17 +58,13 @@ export async function POST(
       }),
       prisma.sourceMaterial.update({
         where: { id: materialId },
-        data: {
-          status: 'INDEXED',
-          processedAt: new Date(),
-        },
+        data: { status: 'INDEXED', processedAt: new Date() },
       }),
     ]);
 
     return NextResponse.json({ success: true, materialId });
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : 'An unexpected error occurred';
+    const message = err instanceof Error ? err.message : 'Unexpected error';
     console.error('Processing error:', message);
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
