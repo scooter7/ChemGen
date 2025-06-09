@@ -6,11 +6,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
 
-// Polyfill for a browser-only API. We use 'global' for the Node.js environment.
-// @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
-if (typeof global.DOMMatrix === 'undefined') {
-  // @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
-  global.DOMMatrix = class DOMMatrix {
+// Polyfill for a browser-only API required by pdfjs-dist at runtime.
+// The Vercel build environment is Node.js, which lacks this API.
+// We cast global to `any` to allow this property assignment without a type error.
+if (typeof (global as any).DOMMatrix === 'undefined') {
+  (global as any).DOMMatrix = class DOMMatrix {
     // Declare properties to satisfy TypeScript
     a: number;
     b: number;
@@ -81,11 +81,8 @@ export async function POST(
       throw downloadError ?? new Error(`Failed to download file: ${sourceMaterial.storagePath}`);
     }
 
-    // Convert the downloaded data to a Uint8Array, as required by pdfjs-dist
-    const fileData = await file.arrayBuffer();
-    const uint8array = new Uint8Array(fileData);
+    const uint8array = new Uint8Array(await file.arrayBuffer());
 
-    // Use pdfjs-dist directly with the correct data type
     const doc = await pdfjs.getDocument({
         data: uint8array,
     }).promise;
