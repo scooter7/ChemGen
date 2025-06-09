@@ -7,8 +7,9 @@ import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
 
 // Polyfill for a browser-only API. We use 'global' for the Node.js environment.
+// @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
 if (typeof global.DOMMatrix === 'undefined') {
-  // @ts-expect-error - This directive is correctly placed above the line that causes a type error.
+  // @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
   global.DOMMatrix = class DOMMatrix {
     // Declare properties to satisfy TypeScript
     a: number;
@@ -80,10 +81,13 @@ export async function POST(
       throw downloadError ?? new Error(`Failed to download file: ${sourceMaterial.storagePath}`);
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // Convert the downloaded data to a Uint8Array, as required by pdfjs-dist
+    const fileData = await file.arrayBuffer();
+    const uint8array = new Uint8Array(fileData);
 
+    // Use pdfjs-dist directly with the correct data type
     const doc = await pdfjs.getDocument({
-        data: buffer,
+        data: uint8array,
     }).promise;
 
     let fullText = '';
