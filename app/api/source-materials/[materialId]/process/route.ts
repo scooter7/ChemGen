@@ -36,7 +36,6 @@ export async function POST(
   try {
     // Dynamically import libraries to ensure they are only loaded at runtime
     const { createClient } = await import('@supabase/supabase-js');
-    // CORRECTED IMPORT: Use the main package entry point
     const pdfjs = await import('pdfjs-dist'); 
     
     // This is a common fix for serverless environments.
@@ -63,10 +62,10 @@ export async function POST(
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Use pdfjs-dist directly, disabling the worker thread
+    // Use pdfjs-dist directly. The 'disableWorker' property has been removed
+    // as it's not supported in your version's type definitions.
     const doc = await pdfjs.getDocument({
         data: buffer,
-        disableWorker: true, // This is the key to preventing file system access
     }).promise;
 
     let fullText = '';
