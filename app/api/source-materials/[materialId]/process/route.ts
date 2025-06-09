@@ -1,5 +1,7 @@
 // app/api/source-materials/[materialId]/process/route.ts
 
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }              from '@supabase/supabase-js';
 import { extractPdfData }            from '@/lib/pdfProcessor';
