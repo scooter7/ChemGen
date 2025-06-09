@@ -1,19 +1,18 @@
 // lib/pdfProcessor.ts
-
 import pdfParse from 'pdf-parse';
 
 /**
  * Extracts text from a PDF buffer.
  *
- * @param input – A Buffer containing PDF bytes (e.g. from Supabase.download)
- * @returns     – An object with the extracted `text`
+ * @param input – A Buffer containing the PDF bytes.
+ * @returns     – An object with the extracted `text`.
  */
 export async function extractPdfData(
   input: Buffer
 ): Promise<{ text: string }> {
   if (!Buffer.isBuffer(input)) {
     throw new Error(
-      'extractPdfData(): expected a Buffer, got ' + typeof input
+      `extractPdfData(): expected a Buffer, got ${typeof input}`
     );
   }
 
