@@ -1,9 +1,8 @@
-// app/api/source-materials/[materialId]/process/route.ts
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, @typescript-eslint/ban-ts-comment */
 
 // Polyfill for DOMMatrix in Node.js (so libraries that rely on it can run server-side)
-// We cast to `any` here to avoid having to implement all of the static methods.
 if (typeof globalThis.DOMMatrix === 'undefined') {
-  // @ts-ignore: Assigning a minimal polyfill to DOMMatrix
+  // @ts-expect-error minimal polyfill assignment
   (globalThis as any).DOMMatrix = class {
     a: number; b: number; c: number; d: number; e: number; f: number;
 
@@ -21,14 +20,17 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
       }
     }
 
-    // no-op to satisfy interfaces
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    translate(tx: number, ty: number) { /* noop */ }
+    translate(_tx: number, _ty: number) { /* no-op */ }
 
-    // Add stub static methods so TS consumers won’t break at runtime if they’re used:
-    static fromFloat32Array(array: Float32Array) { return new (globalThis as any).DOMMatrix() }
-    static fromFloat64Array(array: Float64Array) { return new (globalThis as any).DOMMatrix() }
-    static fromMatrix(other?: DOMMatrixInit) { return new (globalThis as any).DOMMatrix() }
+    static fromFloat32Array(_array: Float32Array): DOMMatrix {
+      return new (globalThis as any).DOMMatrix();
+    }
+    static fromFloat64Array(_array: Float64Array): DOMMatrix {
+      return new (globalThis as any).DOMMatrix();
+    }
+    static fromMatrix(_other?: DOMMatrixInit): DOMMatrix {
+      return new (globalThis as any).DOMMatrix();
+    }
   };
 }
 
@@ -40,10 +42,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ materialId: string }> }
 ): Promise<NextResponse> {
-  const { materialId } = await params; // Next.js 15 requires awaiting params
+  const { materialId } = await params; // Next.js 15 params are async
 
   try {
-    // If you expect a JSON body, uncomment and use:
+    // Example payload parsing (uncomment and adapt as needed):
     // const { fileData } = await request.json();
     // const buffer = Buffer.from(fileData, 'base64');
     // const pdfData = await extractPdfData(buffer);
@@ -53,8 +55,8 @@ export async function POST(
     // });
 
     return NextResponse.json({ success: true, materialId });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }
