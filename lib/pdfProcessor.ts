@@ -1,33 +1,22 @@
 // lib/pdfProcessor.ts
 
-import fs from 'fs';
-import path from 'path';
 import pdfParse from 'pdf-parse';
 
 /**
- * Extracts text from a PDF buffer or file-path.
+ * Extracts text from a PDF buffer.
  *
- * @param input  – Buffer (e.g. from Supabase.download) or string path to PDF.
- * @returns      – { text: string } from pdf-parse
+ * @param input – A Buffer containing PDF bytes (e.g. from Supabase.download)
+ * @returns     – An object with the extracted `text`
  */
 export async function extractPdfData(
-  input: Buffer | string
+  input: Buffer
 ): Promise<{ text: string }> {
-  let dataBuffer: Buffer;
-
-  if (Buffer.isBuffer(input)) {
-    // direct buffer (production route)
-    dataBuffer = input;
-  } else {
-    // string path (e.g. manual tests or debug)
-    // resolve relative to project root
-    const filePath = path.isAbsolute(input)
-      ? input
-      : path.join(process.cwd(), input);
-
-    dataBuffer = await fs.promises.readFile(filePath);
+  if (!Buffer.isBuffer(input)) {
+    throw new Error(
+      'extractPdfData(): expected a Buffer, got ' + typeof input
+    );
   }
 
-  const { text } = await pdfParse(dataBuffer);
+  const { text } = await pdfParse(input);
   return { text };
 }
