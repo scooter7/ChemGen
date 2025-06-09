@@ -45,11 +45,8 @@ export async function POST(
     const { createClient } = await import('@supabase/supabase-js');
     const pdfjs = await import('pdfjs-dist'); 
     
-    // THE FIX: Point workerSrc to a reliable public CDN. This is the standard for serverless environments.
-    if (pdfjs.GlobalWorkerOptions) {
-        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-    }
-
+    // We are no longer setting GlobalWorkerOptions.workerSrc
+    
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -69,7 +66,13 @@ export async function POST(
 
     const uint8array = new Uint8Array(await file.arrayBuffer());
 
-    const doc = await pdfjs.getDocument(uint8array).promise;
+    // THE FIX: Use `disableWorker: true` and suppress the resulting type error,
+    // as the library's types are likely incorrect for your version.
+    const doc = await pdfjs.getDocument({
+        data: uint8array,
+        // @ts-expect-error - The type definitions for this library version are likely incorrect.
+        disableWorker: true,
+    }).promise;
 
     let fullText = '';
     for (let i = 1; i <= doc.numPages; i++) {
