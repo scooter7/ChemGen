@@ -1,44 +1,28 @@
 // lib/pdfProcessor.ts
-import { createClient } from '@supabase/supabase-js';
 
-// This comment explicitly disables the linter rule for the next line only
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdf = require('pdf-parse');
+import pdf from 'pdf-parse';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-const BUCKET = 'source-materials';
-
-interface SourceInfo {
-  storagePath: string;
-  fileType: string | null;
+export interface PdfData {
+  text: string;
+  numpages: number;
+  numrender: number;
+  info: Record<string, any>;
+  metadata: Record<string, any>;
+  version: string;
 }
 
-export async function extractTextFromSource(source: SourceInfo): Promise<string> {
-  const { data: fileData, error } = await supabaseAdmin
-    .storage.from(BUCKET).download(source.storagePath);
-
-  if (error || !fileData) {
-    throw new Error(`Download failed: ${error?.message}`);
+/**
+ * Parse a PDF file buffer and return its extracted text and metadata.
+ *
+ * @param buffer - A Buffer containing the raw PDF bytes.
+ * @returns A PdfData object with text, page count, and metadata.
+ */
+export async function extractPdfData(buffer: Buffer): Promise<PdfData> {
+  try {
+    const data = (await pdf(buffer)) as PdfData;
+    return data;
+  } catch (error) {
+    console.error('PDF parsing error:', error);
+    throw new Error('Failed to parse PDF');
   }
-
-  const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-
-  let text = '';
-  if (source.fileType === 'application/pdf') {
-    const pdfData = await pdf(fileBuffer);
-    text = pdfData.text;
-  } else if (source.fileType?.startsWith('text/')) {
-    text = fileBuffer.toString('utf-8');
-  } else {
-    throw new Error(`Unsupported file type: ${source.fileType}`);
-  }
-
-  if (!text.trim()) {
-    throw new Error('No text could be extracted from the document.');
-  }
-
-  return text;
 }
