@@ -3,14 +3,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient }              from '@supabase/supabase-js';
 import { initPrisma }                from '@/lib/prismaInit';
 import { chunkText }                 from '@/lib/textChunker';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 const prisma = initPrisma();
 
@@ -20,39 +14,46 @@ export async function POST(
 ): Promise<NextResponse> {
   const { materialId } = await params;
 
-  // 👉 Dynamic import so no test‐file logic fires on build
+  // 0️⃣ Dynamically load Supabase client at runtime
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase env vars');
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // 1️⃣ Dynamically load PDF parser
   const { extractPdfData } = await import('@/lib/pdfProcessor');
 
   try {
-    // 1️⃣ Fetch storagePath from DB
+    // 2️⃣ Fetch storagePath from DB
     const sm = await prisma.sourceMaterial.findUnique({
       where: { id: materialId },
       select: { storagePath: true },
     });
     if (!sm) throw new Error('SourceMaterial not found');
 
-    // 2️⃣ Download PDF blob from Supabase Storage
+    // 3️⃣ Download PDF blob
     const { data: file, error: downloadError } = await supabase
       .storage
       .from('source-materials')
       .download(sm.storagePath);
-    if (downloadError || !file) throw downloadError;
+    if (downloadError || !file) throw downloadError ?? new Error('Download failed');
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // 3️⃣ Extract raw text via pdf‐parse
+    // 4️⃣ Extract text & chunk it
     const { text } = await extractPdfData(buffer);
-
-    // 4️⃣ Split text into manageable chunks
     const chunks = chunkText(text);
 
-    // 5️⃣ Persist chunks + update status in one transaction
+    // 5️⃣ Persist chunks + update status
     await prisma.$transaction([
       prisma.documentChunk.createMany({
-        data: chunks.map((chunk) => ({
+        data: chunks.map((c) => ({
           sourceMaterialId: materialId,
-          content: chunk,
+          content: c,
         })),
       }),
       prisma.sourceMaterial.update({
