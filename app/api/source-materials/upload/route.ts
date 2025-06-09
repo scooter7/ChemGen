@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
 
     // 2. Use a Prisma transaction to create all database records atomically
     const newSourceMaterial = await prisma.$transaction(async (tx) => {
-      // Create the SourceMaterial record
+      
+      // NEW: Determine status based on if text was extracted and chunked
+      const chunks = extractedText ? chunkText(extractedText, 1000) : [];
+      const wasIndexed = chunks.length > 0;
+      
+      // Create the SourceMaterial record with the correct status
       const material = await tx.sourceMaterial.create({
         data: {
           userId: userId,
@@ -69,30 +74,31 @@ export async function POST(req: NextRequest) {
           storagePath: uploadData.path, 
           description: description,
           fileSize: file.size,
-          // Set status to INDEXED immediately since we process the text now
-          status: 'INDEXED',
-          processedAt: new Date(),
+          // Conditionally set status and processedAt
+          status: wasIndexed ? 'INDEXED' : 'UPLOADED',
+          processedAt: wasIndexed ? new Date() : null,
         },
       });
 
-      // If text was extracted on the client, chunk and save it
-      if (extractedText) {
-        const chunks = chunkText(extractedText);
-        if (chunks.length > 0) {
-          await tx.documentChunk.createMany({
-            data: chunks.map(chunkContent => ({
-              sourceMaterialId: material.id,
-              content: chunkContent,
-            })),
-          });
-        }
+      // Only create chunks if they exist
+      if (wasIndexed) {
+        await tx.documentChunk.createMany({
+          data: chunks.map(chunkContent => ({
+            sourceMaterialId: material.id,
+            content: chunkContent,
+          })),
+        });
       }
 
       return material;
     });
 
+    const message = newSourceMaterial.status === 'INDEXED'
+      ? 'File uploaded and indexed successfully!'
+      : 'File uploaded but could not be indexed (no text content found).';
+
     return NextResponse.json(
-      { message: 'File uploaded and indexed successfully!', sourceMaterial: newSourceMaterial }, 
+      { message: message, sourceMaterial: newSourceMaterial }, 
       { status: 201 }
     );
 
