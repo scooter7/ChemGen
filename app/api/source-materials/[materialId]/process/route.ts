@@ -1,132 +1,113 @@
 // app/api/source-materials/[materialId]/process/route.ts
+
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { initPrisma }               from '@/lib/prismaInit';
 import { chunkText }                from '@/lib/textChunker';
+import { createClient }             from '@supabase/supabase-js';
+import pdfParse                     from 'pdf-parse';
 
 const prisma = initPrisma();
 
-/** 
- * Narrow an unknown into a Node‐style FS error with `.code` & `.path`.
- */
-function isFsError(err: unknown): err is { code: string; path: string } {
-  if (typeof err === 'object' && err !== null) {
-    // no `any`—assert to a generic record
-    const maybe = err as Record<string, unknown>;
-    return (
-      typeof maybe.code === 'string' &&
-      typeof maybe.path === 'string'
-    );
-  }
-  return false;
-}
-
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ materialId: string }> }
+  { params }: { params: { materialId: string } }
 ): Promise<NextResponse> {
-  const { materialId } = await params;
+  const { materialId } = params;
 
-  // 1️⃣ Load Supabase at runtime
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabaseUrl      = process.env.SUPABASE_URL;
-  const supabaseKey      = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
-    return NextResponse.json(
-      { success: false, error: 'Configuration error' },
-      { status: 500 }
-    );
+  if (!materialId) {
+    return NextResponse.json({ success: false, error: 'Material ID is required.' }, { status: 400 });
   }
-  const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // 2️⃣ Dynamically load PDF parser
-  const { default: pdfParse } = await import('pdf-parse');
-
-  // 3️⃣ Fetch storagePath
-  const sm = await prisma.sourceMaterial.findUnique({
+  // 1. Fetch the SourceMaterial record to get its storage path
+  const sourceMaterial = await prisma.sourceMaterial.findUnique({
     where: { id: materialId },
-    select: { storagePath: true },
   });
-  if (!sm) {
-    return NextResponse.json(
-      { success: false, error: 'SourceMaterial not found' },
-      { status: 404 }
-    );
+
+  if (!sourceMaterial) {
+    return NextResponse.json({ success: false, error: 'SourceMaterial not found' }, { status: 404 });
+  }
+  
+  if (!sourceMaterial.storagePath) {
+    return NextResponse.json({ success: false, error: 'SourceMaterial has no storage path' }, { status: 400 });
   }
 
-  // 4️⃣ Download & parse PDF, with special ENOENT catch
-  let text = '';
+  // 2. Attempt to download and parse the file
+  let text: string;
   try {
-    const { data: file, error: dlErr } = await supabase
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase configuration error: URL or key is missing.');
+    }
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Download from Supabase
+    const { data: file, error: downloadError } = await supabase
       .storage
       .from('source-materials')
-      .download(sm.storagePath);
-    if (dlErr || !file) throw dlErr ?? new Error('Download failed');
+      .download(sourceMaterial.storagePath);
+
+    if (downloadError || !file) {
+      throw downloadError ?? new Error(`Failed to download file from Supabase: ${sourceMaterial.storagePath}`);
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await pdfParse(buffer);
     text = result.text;
-  } catch (err: unknown) {
-    if (
-      isFsError(err) &&
-      err.code === 'ENOENT' &&
-      err.path.includes('test/data')
-    ) {
-      console.warn('PDF fixture not found; indexing empty document.');
-      text = '';
-    } else if (err instanceof Error) {
-      console.error('PDF processing error:', err);
-      return NextResponse.json(
-        { success: false, error: err.message },
-        { status: 500 }
-      );
-    } else {
-      console.error('Unknown PDF error:', err);
-      return NextResponse.json(
-        { success: false, error: 'PDF parsing error' },
-        { status: 500 }
-      );
-    }
+  } catch (error: unknown) {
+    // If ANY error occurs during download or parsing, mark as FAILED
+    const errorMessage = error instanceof Error ? error.message : 'Unknown processing error.';
+    console.error(`Failed to process material ${materialId}:`, errorMessage);
+
+    await prisma.sourceMaterial.update({
+      where: { id: materialId },
+      data: { status: 'FAILED' },
+    });
+
+    return NextResponse.json({ success: false, error: `PDF processing failed: ${errorMessage}` }, { status: 500 });
   }
 
-  // 5️⃣ Chunk & save (zero chunks if text === '')
-  const chunks = text ? chunkText(text) : [];
+  // 3. If parsing was successful, chunk the text and save to the database
   try {
+    const chunks = text ? chunkText(text) : [];
+    
     await prisma.$transaction([
       prisma.documentChunk.createMany({
-        data: chunks.map((c) => ({
+        data: chunks.map((chunkContent) => ({
           sourceMaterialId: materialId,
-          content: c,
+          content: chunkContent,
         })),
+        skipDuplicates: true,
       }),
       prisma.sourceMaterial.update({
         where: { id: materialId },
         data: {
-          status:      'INDEXED',
+          status: 'INDEXED',
           processedAt: new Date(),
         },
       }),
     ]);
+
     return NextResponse.json({
-      success:    true,
+      success: true,
       materialId,
       chunkCount: chunks.length,
+      message: "Material processed and indexed successfully!",
     });
-  } catch (dbErr: unknown) {
-    if (dbErr instanceof Error) {
-      console.error('Database error:', dbErr);
-      return NextResponse.json(
-        { success: false, error: dbErr.message },
-        { status: 500 }
-      );
-    } else {
-      console.error('Unknown DB error:', dbErr);
-      return NextResponse.json(
-        { success: false, error: 'Database transaction failed' },
-        { status: 500 }
-      );
-    }
+
+  } catch (dbError: unknown) {
+    // Handle database transaction errors
+    const errorMessage = dbError instanceof Error ? dbError.message : 'Database transaction failed.';
+    console.error(`Database error for material ${materialId}:`, errorMessage);
+
+    await prisma.sourceMaterial.update({
+      where: { id: materialId },
+      data: { status: 'FAILED' },
+    });
+    
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
