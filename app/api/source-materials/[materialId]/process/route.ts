@@ -5,7 +5,22 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
-// Note: Libraries are now dynamically imported inside the handler
+
+// Polyfill for a browser-only API that pdfjs-dist requires.
+// This prevents a "DOMMatrix is not defined" runtime error in the Node.js environment.
+// We are defining a mock class on the global scope before the library is imported.
+// @ts-ignore
+if (typeof self.DOMMatrix === 'undefined') {
+  // @ts-ignore
+  self.DOMMatrix = class DOMMatrix {
+    // A minimal mock to prevent the ReferenceError.
+    // The constructor and methods don't need to be functional.
+    constructor() { return; }
+    translateSelf() { return this; }
+    scaleSelf() { return this; }
+    multiplySelf() { return this; }
+  };
+}
 
 const prisma = initPrisma();
 
@@ -62,8 +77,7 @@ export async function POST(
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Use pdfjs-dist directly. The 'disableWorker' property has been removed
-    // as it's not supported in your version's type definitions.
+    // Use pdfjs-dist directly
     const doc = await pdfjs.getDocument({
         data: buffer,
     }).promise;
