@@ -10,6 +10,10 @@ import {
     RefreshCw, 
     Loader2
 } from 'lucide-react';
+import * as pdfjs from 'pdfjs-dist';
+
+// This is the standard and required way to configure the worker for client-side execution.
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.mjs`;
 
 interface SourceMaterial {
   id: string;
@@ -23,31 +27,39 @@ export default function BrandMaterialsClientPage() {
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState<string>("");
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
+  
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [pdfjs, setPdfjs] = useState<any>(null);
+
+  const fetchMaterials = async () => {
+    setIsLoadingMaterials(true);
+    setFetchError(null);
+    try {
+      const response = await fetch('/api/source-materials');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch materials: ${response.status}`);
+      }
+      const data: SourceMaterial[] = await response.json();
+      setMaterials(data);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsLoadingMaterials(false);
+    }
+  };
 
   useEffect(() => {
-    // This dynamic import ensures pdfjs is only loaded on the client
-    import('pdfjs-dist/build/pdf.mjs').then(pdfjsModule => {
-      pdfjsModule.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsModule.version}/pdf.worker.mjs`;
-      setPdfjs(pdfjsModule);
-    });
+    fetchMaterials();
   }, []);
-  
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!pdfjs) {
-        setStatusMessage({type: 'error', text: 'PDF library is not loaded yet. Please wait a moment.'});
-        return;
-    }
 
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       setSelectedFile(null);
@@ -72,7 +84,6 @@ export default function BrandMaterialsClientPage() {
             for (let i = 1; i <= doc.numPages; i++) {
               const page = await doc.getPage(i);
               const content = await page.getTextContent();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const strings = content.items.map((item: any) => 'str' in item ? item.str : '');
               fullText += strings.join(' ') + '\n';
             }
@@ -89,29 +100,10 @@ export default function BrandMaterialsClientPage() {
         setIsParsing(false);
       }
     } else {
-        setStatusMessage({type: 'info', text: `Selected "${file.name}". Non-PDF files will be stored without text analysis.`});
+        setStatusMessage({type: 'info', text: `Selected "${file.name}". This file will be stored without text analysis.`});
     }
   };
 
-  const fetchMaterials = async () => {
-    setIsLoadingMaterials(true);
-    setFetchError(null);
-    try {
-      const response = await fetch('/api/source-materials');
-      if (!response.ok) throw new Error(`Failed to fetch materials: ${response.status}`);
-      const data: SourceMaterial[] = await response.json();
-      setMaterials(data);
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoadingMaterials(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMaterials();
-  }, []);
-  
   const handleFileUpload = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedFile) {
