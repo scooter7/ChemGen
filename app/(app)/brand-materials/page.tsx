@@ -10,11 +10,9 @@ import {
     RefreshCw, 
     Loader2
 } from 'lucide-react';
-import * as pdfjs from 'pdfjs-dist';
 
-// Since we are using a specific version, we point to the CDN for the worker
-// This is best practice for using pdfjs-dist in a modern web app.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.mjs`;
+// We will import pdfjs dynamically inside a useEffect hook to avoid server-side rendering issues.
+// import * as pdfjs from 'pdfjs-dist'; <-- DO NOT IMPORT HERE
 
 interface SourceMaterial {
   id: string;
@@ -25,42 +23,35 @@ interface SourceMaterial {
 }
 
 export default function BrandMaterialsPage() {
+  // State remains the same...
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState<string>("");
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
-  
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
+  const [pdfjs, setPdfjs] = useState<any>(null); // State to hold the pdfjs module
 
-  const fetchMaterials = async () => {
-    setIsLoadingMaterials(true);
-    setFetchError(null);
-    try {
-      const response = await fetch('/api/source-materials');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch materials: ${response.status}`);
-      }
-      const data: SourceMaterial[] = await response.json();
-      setMaterials(data);
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoadingMaterials(false);
-    }
-  };
-
+  // Dynamically load pdfjs-dist only on the client-side
   useEffect(() => {
-    fetchMaterials();
+    import('pdfjs-dist').then(pdfjsModule => {
+      pdfjsModule.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsModule.version}/pdf.worker.mjs`;
+      setPdfjs(pdfjsModule);
+    });
   }, []);
-
+  
+  // The rest of the component logic remains the same, just ensure to use the `pdfjs` from state
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!pdfjs) {
+        setStatusMessage({type: 'error', text: 'PDF library is not loaded yet. Please wait a moment.'});
+        return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) {
       setSelectedFile(null);
@@ -85,7 +76,7 @@ export default function BrandMaterialsPage() {
             for (let i = 1; i <= doc.numPages; i++) {
               const page = await doc.getPage(i);
               const content = await page.getTextContent();
-              const strings = content.items.map(item => 'str' in item ? item.str : '');
+              const strings = content.items.map((item: any) => 'str' in item ? item.str : '');
               fullText += strings.join(' ') + '\n';
             }
             setExtractedText(fullText);
@@ -101,11 +92,33 @@ export default function BrandMaterialsPage() {
         setIsParsing(false);
       }
     } else {
-        // For non-PDF files, we won't have text to extract.
         setStatusMessage({type: 'info', text: `Selected "${file.name}". Non-PDF files will be stored without text content.`});
     }
   };
 
+  // The rest of the component (fetchMaterials, handleFileUpload, etc.) and the JSX remain unchanged.
+  // I will provide the full file for you.
+  const fetchMaterials = async () => {
+    setIsLoadingMaterials(true);
+    setFetchError(null);
+    try {
+      const response = await fetch('/api/source-materials');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch materials: ${response.status}`);
+      }
+      const data: SourceMaterial[] = await response.json();
+      setMaterials(data);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsLoadingMaterials(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMaterials();
+  }, []);
+  
   const handleFileUpload = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedFile) {
@@ -128,7 +141,6 @@ export default function BrandMaterialsPage() {
       
       setStatusMessage({type: 'success', text: `Success: "${result.sourceMaterial.fileName}" was uploaded and indexed!`});
       
-      // Reset form
       setSelectedFile(null);
       setFileDescription("");
       setExtractedText(null);
