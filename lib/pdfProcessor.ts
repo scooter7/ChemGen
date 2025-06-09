@@ -1,11 +1,11 @@
 // lib/pdfProcessor.ts
+
 import pdfParse from 'pdf-parse';
 
 /**
- * Extracts text from a PDF buffer.
+ * Extract text from a PDF buffer.
  *
- * @param input – A Buffer containing the PDF bytes.
- * @returns     – An object with the extracted `text`.
+ * Only accepts a Buffer. Will never try to read from disk.
  */
 export async function extractPdfData(
   input: Buffer
