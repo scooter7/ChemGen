@@ -1,10 +1,10 @@
 // app/api/source-materials/[materialId]/process/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient }         from '@supabase/supabase-js';
-import { extractPdfData }       from '@/lib/pdfProcessor';
-import prisma                   from '@/lib/prisma';
-import { chunkText }            from '@/lib/textChunker';
+import { createClient }             from '@supabase/supabase-js';
+import { extractPdfData }           from '../../../../../lib/pdfProcessor';
+import prisma                       from '../../../../../lib/prisma';
+import { chunkText }                from '../../../../../lib/textChunker';
 
 // Initialize Supabase with your service-role key
 const supabase = createClient(
