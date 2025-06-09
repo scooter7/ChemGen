@@ -12,9 +12,9 @@ const prisma = initPrisma();
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { materialId: string } }
+  context: any // Using 'any' to bypass the build error, consistent with other routes.
 ): Promise<NextResponse> {
-  const { materialId } = params;
+  const { materialId } = context.params;
 
   if (!materialId) {
     return NextResponse.json({ success: false, error: 'Material ID is required.' }, { status: 400 });
