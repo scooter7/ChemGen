@@ -1,16 +1,18 @@
 // app/api/source-materials/[materialId]/process/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient }             from '@supabase/supabase-js';
-import { extractPdfData }           from '../../../../../lib/pdfProcessor';
-import prisma                       from '../../../../../lib/prisma';
-import { chunkText }                from '../../../../../lib/textChunker';
+import { createClient }              from '@supabase/supabase-js';
+import { extractPdfData }            from '@/lib/pdfProcessor';
+import { initPrisma }                from '@/lib/prismaInit';
+import { chunkText }                 from '@/lib/textChunker';
 
-// Initialize Supabase with your service-role key
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// initialize (or reuse) a PrismaClient instance
+const prisma = initPrisma();
 
 export async function POST(
   request: NextRequest,
