@@ -7,9 +7,8 @@ import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
 
 // Polyfill for a browser-only API. We use 'global' for the Node.js environment.
-// @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
 if (typeof global.DOMMatrix === 'undefined') {
-  // @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
+  // @ts-expect-error - This directive is correctly placed above the line that causes a type error.
   global.DOMMatrix = class DOMMatrix {
     // Declare properties to satisfy TypeScript
     a: number;
