@@ -8,16 +8,17 @@ import { chunkText } from '@/lib/textChunker';
 
 // Polyfill for a browser-only API that pdfjs-dist requires.
 // This prevents a "DOMMatrix is not defined" runtime error in the Node.js environment.
-// @ts-expect-error - We are intentionally polyfilling a browser API that doesn't exist in this environment.
 if (typeof self.DOMMatrix === 'undefined') {
-  // @ts-expect-error - We are intentionally polyfilling a browser API that doesn't exist in this environment.
+  // @ts-expect-error - This directive is correctly placed above the line that could cause a type error.
   self.DOMMatrix = class DOMMatrix {
+    // A minimal mock to prevent the ReferenceError.
     constructor() {
       // Mock properties to avoid potential errors
       this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
     }
     translateSelf() { return this; }
     scaleSelf() { return this; }
+    multiplySelf() { return this; }
   };
 }
 
@@ -85,7 +86,6 @@ export async function POST(
     for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
         const content = await page.getTextContent();
-        // The 'str' property exists on TextItem, so we safely extract it.
         const strings = content.items
             .filter(item => 'str' in item)
             .map(item => (item as { str: string }).str);
