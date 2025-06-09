@@ -3,17 +3,16 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { initPrisma }               from '@/lib/prismaInit';
-import { chunkText }                from '@/lib/textChunker';
-import { createClient }             from '@supabase/supabase-js';
-import pdfParse                     from 'pdf-parse';
+import { initPrisma } from '@/lib/prismaInit';
+import { chunkText } from '@/lib/textChunker';
+// Note: pdf-parse and supabase-js are NOT imported at the top level
 
 const prisma = initPrisma();
 
 export async function POST(
   request: NextRequest,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  context: any // Using 'any' with an ESLint disable comment to fix the build error
+  context: any
 ): Promise<NextResponse> {
   const { materialId } = context.params;
 
@@ -37,6 +36,10 @@ export async function POST(
   // 2. Attempt to download and parse the file
   let text: string;
   try {
+    // DYNAMICALLY import libraries only when the function is executed
+    const { createClient } = await import('@supabase/supabase-js');
+    const { default: pdfParse } = await import('pdf-parse');
+
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
