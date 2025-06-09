@@ -43,9 +43,10 @@ export async function POST(
   let text: string;
   try {
     const { createClient } = await import('@supabase/supabase-js');
-    const pdfjs = await import('pdfjs-dist'); 
+    const pdfjs = await import('pdfjs-dist');
     
-    // We are no longer setting GlobalWorkerOptions.workerSrc
+    // We will NOT configure GlobalWorkerOptions.
+    // The disableWorker flag is the correct, direct approach.
     
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -66,11 +67,11 @@ export async function POST(
 
     const uint8array = new Uint8Array(await file.arrayBuffer());
 
-    // THE FIX: Use `disableWorker: true` and suppress the resulting type error,
-    // as the library's types are likely incorrect for your version.
+    // THE FIX: Use `disableWorker: true` and suppress the resulting type error.
+    // This is the most direct way to force single-threaded execution in Node.js.
     const doc = await pdfjs.getDocument({
         data: uint8array,
-        // @ts-expect-error - The type definitions for this library version are likely incorrect.
+        // @ts-expect-error - The type definitions for this library version are incorrect and miss this property.
         disableWorker: true,
     }).promise;
 
