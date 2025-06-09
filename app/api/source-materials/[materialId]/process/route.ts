@@ -22,7 +22,6 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
 }
 
 import { NextRequest, NextResponse } from 'next/server';
-// (Any other imports you need, e.g. your PDF-parser, DB client, etc.)
 // import { extractPdfData } from '@/lib/pdfProcessor';
 // import prisma from '@/lib/prisma';
 
@@ -30,32 +29,23 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ materialId: string }> }
 ): Promise<NextResponse> {
-  // In Next.js 15 the `params` object is async
-  const { materialId } = await params; 
-                              // ─────────────────────────── await the Promise here :contentReference[oaicite:0]{index=0}
+  const { materialId } = await params; // Next.js 15 requires awaiting params
 
   try {
-    // Parse the incoming JSON payload (if you expect JSON):
-    const body = await request.json();
-
-    // TODO: Replace the below with your actual material-processing logic.
-    // For example, fetch & parse a PDF, store results in your database, etc.
-    // const pdfBuffer = Buffer.from(body.fileData, 'base64');
-    // const pdfData = await extractPdfData(pdfBuffer);
-    // const record = await prisma.sourceMaterial.update({
+    // If you expect a JSON body, uncomment and use:
+    // const { fileData } = await request.json();
+    // const buffer = Buffer.from(fileData, 'base64');
+    // const pdfData = await extractPdfData(buffer);
+    // await prisma.sourceMaterial.update({
     //   where: { id: materialId },
     //   data: { processedText: pdfData.text },
     // });
 
-    // Return a success response (adjust shape as needed)
-    return NextResponse.json({
-      success: true,
-      materialId,
-      // data: record,
-    });
-  } catch (error: any) {
+    return NextResponse.json({ success: true, materialId });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: message },
       { status: 500 }
     );
   }
