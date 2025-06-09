@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient }              from '@supabase/supabase-js';
-import { extractPdfData }            from '@/lib/pdfProcessor';
 import { initPrisma }                from '@/lib/prismaInit';
 import { chunkText }                 from '@/lib/textChunker';
 
@@ -21,6 +20,9 @@ export async function POST(
 ): Promise<NextResponse> {
   const { materialId } = await params;
 
+  // 👉 Dynamic import so no test‐file logic fires on build
+  const { extractPdfData } = await import('@/lib/pdfProcessor');
+
   try {
     // 1️⃣ Fetch storagePath from DB
     const sm = await prisma.sourceMaterial.findUnique({
@@ -34,7 +36,7 @@ export async function POST(
       .storage
       .from('source-materials')
       .download(sm.storagePath);
-    if (downloadError || !file) throw downloadError ?? new Error('Download failed');
+    if (downloadError || !file) throw downloadError;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -65,16 +67,8 @@ export async function POST(
     return NextResponse.json({ success: true, materialId });
   } catch (err: unknown) {
     const message =
-      err instanceof Error
-        ? err.message
-        : typeof err === 'string'
-          ? err
-          : 'An unexpected error occurred';
-
+      err instanceof Error ? err.message : 'An unexpected error occurred';
     console.error('Processing error:', message);
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
