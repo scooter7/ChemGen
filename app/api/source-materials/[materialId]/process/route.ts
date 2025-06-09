@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
-// Note: pdf-parse and supabase-js are NOT imported at the top level
+// Note: Libraries are now dynamically imported inside the handler
 
 const prisma = initPrisma();
 
@@ -20,7 +20,6 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'Material ID is required.' }, { status: 400 });
   }
 
-  // 1. Fetch the SourceMaterial record to get its storage path
   const sourceMaterial = await prisma.sourceMaterial.findUnique({
     where: { id: materialId },
   });
@@ -33,12 +32,15 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'SourceMaterial has no storage path' }, { status: 400 });
   }
 
-  // 2. Attempt to download and parse the file
   let text: string;
   try {
-    // DYNAMICALLY import libraries only when the function is executed
+    // Dynamically import libraries to ensure they are only loaded at runtime
     const { createClient } = await import('@supabase/supabase-js');
-    const { default: pdfParse } = await import('pdf-parse');
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+    
+    // This is a common fix for serverless environments.
+    // It prevents the library from trying to load a "worker" file from the local file system.
+    pdfjs.GlobalWorkerOptions.workerSrc = '';
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -48,21 +50,36 @@ export async function POST(
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Download from Supabase
     const { data: file, error: downloadError } = await supabase
       .storage
       .from('source-materials')
       .download(sourceMaterial.storagePath);
 
     if (downloadError || !file) {
-      throw downloadError ?? new Error(`Failed to download file from Supabase: ${sourceMaterial.storagePath}`);
+      throw downloadError ?? new Error(`Failed to download file: ${sourceMaterial.storagePath}`);
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await pdfParse(buffer);
-    text = result.text;
+
+    // Use pdfjs-dist directly, and crucially, disable the worker thread
+    const doc = await pdfjs.getDocument({
+        data: buffer,
+        disableWorker: true, // This is the key to preventing file system access
+    }).promise;
+
+    let fullText = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const content = await page.getTextContent();
+        // The 'str' property exists on TextItem, so we safely extract it.
+        const strings = content.items
+            .filter(item => 'str' in item)
+            .map(item => (item as { str: string }).str);
+        fullText += strings.join(' ') + '\n';
+    }
+    text = fullText;
+
   } catch (error: unknown) {
-    // If ANY error occurs during download or parsing, mark as FAILED
     const errorMessage = error instanceof Error ? error.message : 'Unknown processing error.';
     console.error(`Failed to process material ${materialId}:`, errorMessage);
 
@@ -74,7 +91,7 @@ export async function POST(
     return NextResponse.json({ success: false, error: `PDF processing failed: ${errorMessage}` }, { status: 500 });
   }
 
-  // 3. If parsing was successful, chunk the text and save to the database
+  // If parsing was successful, proceed to chunk and save
   try {
     const chunks = text ? chunkText(text) : [];
     
@@ -103,7 +120,6 @@ export async function POST(
     });
 
   } catch (dbError: unknown) {
-    // Handle database transaction errors
     const errorMessage = dbError instanceof Error ? dbError.message : 'Database transaction failed.';
     console.error(`Database error for material ${materialId}:`, errorMessage);
 
