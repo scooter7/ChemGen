@@ -36,11 +36,13 @@ export async function POST(
   try {
     // Dynamically import libraries to ensure they are only loaded at runtime
     const { createClient } = await import('@supabase/supabase-js');
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+    // CORRECTED IMPORT: Use the main package entry point
+    const pdfjs = await import('pdfjs-dist'); 
     
     // This is a common fix for serverless environments.
-    // It prevents the library from trying to load a "worker" file from the local file system.
-    pdfjs.GlobalWorkerOptions.workerSrc = '';
+    if (pdfjs.GlobalWorkerOptions) {
+        pdfjs.GlobalWorkerOptions.workerSrc = '';
+    }
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -61,7 +63,7 @@ export async function POST(
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Use pdfjs-dist directly, and crucially, disable the worker thread
+    // Use pdfjs-dist directly, disabling the worker thread
     const doc = await pdfjs.getDocument({
         data: buffer,
         disableWorker: true, // This is the key to preventing file system access
