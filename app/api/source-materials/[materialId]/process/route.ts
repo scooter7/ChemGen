@@ -7,13 +7,19 @@ import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
 
 // Polyfill for a browser-only API that pdfjs-dist requires.
-// This prevents a "DOMMatrix is not defined" runtime error in the Node.js environment.
 if (typeof self.DOMMatrix === 'undefined') {
-  // @ts-expect-error - This directive is correctly placed above the line that could cause a type error.
+  // @ts-expect-error - We are intentionally polyfilling a browser API that doesn't exist in this environment.
   self.DOMMatrix = class DOMMatrix {
-    // A minimal mock to prevent the ReferenceError.
+    // Declare properties to satisfy TypeScript
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+    
     constructor() {
-      // Mock properties to avoid potential errors
+      // Mock properties to avoid potential errors during runtime
       this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
     }
     translateSelf() { return this; }
@@ -53,7 +59,6 @@ export async function POST(
     const { createClient } = await import('@supabase/supabase-js');
     const pdfjs = await import('pdfjs-dist'); 
     
-    // This is a common fix for serverless environments.
     if (pdfjs.GlobalWorkerOptions) {
         pdfjs.GlobalWorkerOptions.workerSrc = '';
     }
@@ -77,7 +82,6 @@ export async function POST(
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Use pdfjs-dist directly
     const doc = await pdfjs.getDocument({
         data: buffer,
     }).promise;
