@@ -1,5 +1,5 @@
 // app/(app)/brand-materials/page.tsx
-"use client"; // This line is CRITICAL and makes this a Client Component.
+"use client"; // This is the critical line that fixes the build error.
 
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
