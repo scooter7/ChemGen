@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, @typescript-eslint/ban-ts-comment */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
 // Polyfill for DOMMatrix in Node.js (so libraries that rely on it can run server-side)
 if (typeof globalThis.DOMMatrix === 'undefined') {
-  // @ts-expect-error minimal polyfill assignment
+  // Assign a minimal “duck-typed” polyfill for DOMMatrix
   (globalThis as any).DOMMatrix = class {
     a: number; b: number; c: number; d: number; e: number; f: number;
 
@@ -20,7 +20,8 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
       }
     }
 
-    translate(_tx: number, _ty: number) { /* no-op */ }
+    // no-op to satisfy code paths that call it
+    translate(_tx: number, _ty: number) { /* noop */ }
 
     static fromFloat32Array(_array: Float32Array): DOMMatrix {
       return new (globalThis as any).DOMMatrix();
@@ -42,10 +43,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ materialId: string }> }
 ): Promise<NextResponse> {
-  const { materialId } = await params; // Next.js 15 params are async
+  const { materialId } = await params; // Next.js 15 now requires awaiting params
 
   try {
-    // Example payload parsing (uncomment and adapt as needed):
+    // Example payload parsing (uncomment & adapt if needed):
     // const { fileData } = await request.json();
     // const buffer = Buffer.from(fileData, 'base64');
     // const pdfData = await extractPdfData(buffer);
