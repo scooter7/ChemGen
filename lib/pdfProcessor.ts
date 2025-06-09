@@ -1,9 +1,8 @@
 // lib/pdfProcessor.ts
 import { createClient } from '@supabase/supabase-js';
 
-// The linter rule is '@typescript-eslint/no-require-imports', not 'no-var-requires'.
-// This is the corrected line.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// This comment explicitly disables the linter rule for the next line only
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdf = require('pdf-parse');
 
 const supabaseUrl = process.env.SUPABASE_URL!;
