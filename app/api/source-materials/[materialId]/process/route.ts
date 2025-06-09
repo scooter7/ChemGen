@@ -11,18 +11,8 @@ import { chunkText } from '@/lib/textChunker';
 if (typeof (global as any).DOMMatrix === 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).DOMMatrix = class DOMMatrix {
-    // Declare properties to satisfy TypeScript
-    a: number;
-    b: number;
-    c: number;
-    d: number;
-    e: number;
-    f: number;
-    
-    constructor() {
-      // Mock properties to avoid potential errors during runtime
-      this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
-    }
+    a: number; b: number; c: number; d: number; e: number; f: number;
+    constructor() { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0; }
     translateSelf() { return this; }
     scaleSelf() { return this; }
     multiplySelf() { return this; }
@@ -46,22 +36,18 @@ export async function POST(
     where: { id: materialId },
   });
 
-  if (!sourceMaterial) {
-    return NextResponse.json({ success: false, error: 'SourceMaterial not found' }, { status: 404 });
-  }
-  
-  if (!sourceMaterial.storagePath) {
-    return NextResponse.json({ success: false, error: 'SourceMaterial has no storage path' }, { status: 400 });
+  if (!sourceMaterial || !sourceMaterial.storagePath) {
+    return NextResponse.json({ success: false, error: 'SourceMaterial not found or has no storage path' }, { status: 404 });
   }
 
   let text: string;
   try {
-    // Dynamically import libraries to ensure they are only loaded at runtime
     const { createClient } = await import('@supabase/supabase-js');
     const pdfjs = await import('pdfjs-dist'); 
     
+    // THE FIX: Point workerSrc to a reliable public CDN. This is the standard for serverless environments.
     if (pdfjs.GlobalWorkerOptions) {
-        pdfjs.GlobalWorkerOptions.workerSrc = '';
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -83,9 +69,7 @@ export async function POST(
 
     const uint8array = new Uint8Array(await file.arrayBuffer());
 
-    const doc = await pdfjs.getDocument({
-        data: uint8array,
-    }).promise;
+    const doc = await pdfjs.getDocument(uint8array).promise;
 
     let fullText = '';
     for (let i = 1; i <= doc.numPages; i++) {
@@ -101,12 +85,7 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown processing error.';
     console.error(`Failed to process material ${materialId}:`, errorMessage);
-
-    await prisma.sourceMaterial.update({
-      where: { id: materialId },
-      data: { status: 'FAILED' },
-    });
-
+    await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED' } });
     return NextResponse.json({ success: false, error: `PDF processing failed: ${errorMessage}` }, { status: 500 });
   }
 
@@ -116,18 +95,12 @@ export async function POST(
     
     await prisma.$transaction([
       prisma.documentChunk.createMany({
-        data: chunks.map((chunkContent) => ({
-          sourceMaterialId: materialId,
-          content: chunkContent,
-        })),
+        data: chunks.map((chunkContent) => ({ sourceMaterialId: materialId, content: chunkContent })),
         skipDuplicates: true,
       }),
       prisma.sourceMaterial.update({
         where: { id: materialId },
-        data: {
-          status: 'INDEXED',
-          processedAt: new Date(),
-        },
+        data: { status: 'INDEXED', processedAt: new Date() },
       }),
     ]);
 
@@ -141,12 +114,7 @@ export async function POST(
   } catch (dbError: unknown) {
     const errorMessage = dbError instanceof Error ? dbError.message : 'Database transaction failed.';
     console.error(`Database error for material ${materialId}:`, errorMessage);
-
-    await prisma.sourceMaterial.update({
-      where: { id: materialId },
-      data: { status: 'FAILED' },
-    });
-    
+    await prisma.sourceMaterial.update({ where: { id: materialId }, data: { status: 'FAILED' } });
     return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
