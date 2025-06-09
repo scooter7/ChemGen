@@ -8,17 +8,16 @@ import { chunkText } from '@/lib/textChunker';
 
 // Polyfill for a browser-only API that pdfjs-dist requires.
 // This prevents a "DOMMatrix is not defined" runtime error in the Node.js environment.
-// We are defining a mock class on the global scope before the library is imported.
-// @ts-ignore
+// @ts-expect-error - We are intentionally polyfilling a browser API that doesn't exist in this environment.
 if (typeof self.DOMMatrix === 'undefined') {
-  // @ts-ignore
+  // @ts-expect-error - We are intentionally polyfilling a browser API that doesn't exist in this environment.
   self.DOMMatrix = class DOMMatrix {
-    // A minimal mock to prevent the ReferenceError.
-    // The constructor and methods don't need to be functional.
-    constructor() { return; }
+    constructor() {
+      // Mock properties to avoid potential errors
+      this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
+    }
     translateSelf() { return this; }
     scaleSelf() { return this; }
-    multiplySelf() { return this; }
   };
 }
 
