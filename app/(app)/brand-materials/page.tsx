@@ -23,7 +23,6 @@ interface SourceMaterial {
 }
 
 export default function BrandMaterialsPage() {
-  // State remains the same...
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -35,6 +34,7 @@ export default function BrandMaterialsPage() {
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pdfjs, setPdfjs] = useState<any>(null); // State to hold the pdfjs module
 
   // Dynamically load pdfjs-dist only on the client-side
@@ -45,7 +45,6 @@ export default function BrandMaterialsPage() {
     });
   }, []);
   
-  // The rest of the component logic remains the same, just ensure to use the `pdfjs` from state
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!pdfjs) {
         setStatusMessage({type: 'error', text: 'PDF library is not loaded yet. Please wait a moment.'});
@@ -76,6 +75,7 @@ export default function BrandMaterialsPage() {
             for (let i = 1; i <= doc.numPages; i++) {
               const page = await doc.getPage(i);
               const content = await page.getTextContent();
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const strings = content.items.map((item: any) => 'str' in item ? item.str : '');
               fullText += strings.join(' ') + '\n';
             }
@@ -96,8 +96,6 @@ export default function BrandMaterialsPage() {
     }
   };
 
-  // The rest of the component (fetchMaterials, handleFileUpload, etc.) and the JSX remain unchanged.
-  // I will provide the full file for you.
   const fetchMaterials = async () => {
     setIsLoadingMaterials(true);
     setFetchError(null);
