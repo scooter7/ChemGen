@@ -6,10 +6,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
 
-// Polyfill for a browser-only API that pdfjs-dist requires.
-if (typeof self.DOMMatrix === 'undefined') {
-  // @ts-expect-error - We are intentionally polyfilling a browser API that doesn't exist in this environment.
-  self.DOMMatrix = class DOMMatrix {
+// Polyfill for a browser-only API. We use 'global' for the Node.js environment.
+// @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
+if (typeof global.DOMMatrix === 'undefined') {
+  // @ts-expect-error - We are intentionally polyfilling a browser API on the global object.
+  global.DOMMatrix = class DOMMatrix {
     // Declare properties to satisfy TypeScript
     a: number;
     b: number;
