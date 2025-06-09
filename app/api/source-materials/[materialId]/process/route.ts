@@ -11,7 +11,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// initialize (or reuse) a PrismaClient instance
 const prisma = initPrisma();
 
 export async function POST(
@@ -63,10 +62,18 @@ export async function POST(
     ]);
 
     return NextResponse.json({ success: true, materialId });
-  } catch (err: any) {
-    console.error('Processing error:', err);
+  } catch (err: unknown) {
+    // Safely extract error message from unknown
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === 'string'
+          ? err
+          : 'An unexpected error occurred';
+
+    console.error('Processing error:', message);
     return NextResponse.json(
-      { success: false, error: err.message },
+      { success: false, error: message },
       { status: 500 }
     );
   }
