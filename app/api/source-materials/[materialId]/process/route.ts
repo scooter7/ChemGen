@@ -1,65 +1,70 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-
-// Polyfill for DOMMatrix in Node.js (so libraries that rely on it can run server-side)
-if (typeof globalThis.DOMMatrix === 'undefined') {
-  // Assign a minimal “duck-typed” polyfill for DOMMatrix
-  (globalThis as any).DOMMatrix = class {
-    a: number; b: number; c: number; d: number; e: number; f: number;
-
-    constructor(init?: string | number[]) {
-      this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0;
-      if (typeof init === 'string') {
-        const vals = init
-          .replace('matrix(', '')
-          .replace(')', '')
-          .split(',')
-          .map(Number);
-        [this.a, this.b, this.c, this.d, this.e, this.f] = vals;
-      } else if (Array.isArray(init) && init.length === 6) {
-        [this.a, this.b, this.c, this.d, this.e, this.f] = init;
-      }
-    }
-
-    // no-op to satisfy code paths that call it
-    translate(_tx: number, _ty: number) { /* noop */ }
-
-    static fromFloat32Array(_array: Float32Array): DOMMatrix {
-      return new (globalThis as any).DOMMatrix();
-    }
-    static fromFloat64Array(_array: Float64Array): DOMMatrix {
-      return new (globalThis as any).DOMMatrix();
-    }
-    static fromMatrix(_other?: DOMMatrixInit): DOMMatrix {
-      return new (globalThis as any).DOMMatrix();
-    }
-  };
-}
+// app/api/source-materials/[materialId]/process/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-// import { extractPdfData } from '@/lib/pdfProcessor';
-// import prisma from '@/lib/prisma';
+import { createClient }         from '@supabase/supabase-js';
+import { extractPdfData }       from '@/lib/pdfProcessor';
+import prisma                   from '@/lib/prisma';
+import { chunkText }            from '@/lib/textChunker';
+
+// Initialize Supabase with your service-role key
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ materialId: string }> }
 ): Promise<NextResponse> {
-  const { materialId } = await params; // Next.js 15 now requires awaiting params
+  const { materialId } = await params;
 
   try {
-    // Example payload parsing (uncomment & adapt if needed):
-    // const { fileData } = await request.json();
-    // const buffer = Buffer.from(fileData, 'base64');
-    // const pdfData = await extractPdfData(buffer);
-    // await prisma.sourceMaterial.update({
-    //   where: { id: materialId },
-    //   data: { processedText: pdfData.text },
-    // });
+    // 1️⃣ Fetch storagePath from DB
+    const sm = await prisma.sourceMaterial.findUnique({
+      where: { id: materialId },
+      select: { storagePath: true },
+    });
+    if (!sm) throw new Error('SourceMaterial not found');
+
+    // 2️⃣ Download PDF blob from Supabase Storage
+    const { data: file, error: downloadError } = await supabase
+      .storage
+      .from('source-materials')
+      .download(sm.storagePath);
+    if (downloadError || !file) throw downloadError ?? new Error('Download failed');
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // 3️⃣ Extract raw text via pdf‐parse
+    const { text } = await extractPdfData(buffer);
+
+    // 4️⃣ Split text into manageable chunks
+    const chunks = chunkText(text);
+
+    // 5️⃣ Persist chunks + update status in one transaction
+    await prisma.$transaction([
+      prisma.documentChunk.createMany({
+        data: chunks.map((chunk, idx) => ({
+          sourceMaterialId: materialId,
+          chunkIndex: idx,
+          text: chunk,
+        })),
+      }),
+      prisma.sourceMaterial.update({
+        where: { id: materialId },
+        data: {
+          status: 'INDEXED',
+          processedAt: new Date(),
+        },
+      }),
+    ]);
 
     return NextResponse.json({ success: true, materialId });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch (err: any) {
+    console.error('Processing error:', err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: err.message },
       { status: 500 }
     );
   }
