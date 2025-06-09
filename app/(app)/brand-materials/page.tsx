@@ -2,7 +2,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
-import { UploadCloud, FileText, ImageIcon, Trash2, RefreshCw, AlertCircle, CheckCircle2, Loader2, Zap } from 'lucide-react';
+import { 
+    UploadCloud, 
+    FileText, 
+    ImageIcon,
+    Trash2, 
+    RefreshCw, 
+    Loader2
+} from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 
 // Since we are using a specific version, we point to the CDN for the worker
