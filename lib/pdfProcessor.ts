@@ -6,8 +6,8 @@ export interface PdfData {
   text: string;
   numpages: number;
   numrender: number;
-  info: Record<string, any>;
-  metadata: Record<string, any>;
+  info: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   version: string;
 }
 
