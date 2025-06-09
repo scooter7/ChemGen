@@ -7,9 +7,9 @@ import { initPrisma } from '@/lib/prismaInit';
 import { chunkText } from '@/lib/textChunker';
 
 // Polyfill for a browser-only API required by pdfjs-dist at runtime.
-// The Vercel build environment is Node.js, which lacks this API.
-// We cast global to `any` to allow this property assignment without a type error.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 if (typeof (global as any).DOMMatrix === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (global as any).DOMMatrix = class DOMMatrix {
     // Declare properties to satisfy TypeScript
     a: number;
