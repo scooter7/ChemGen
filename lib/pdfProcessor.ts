@@ -1,6 +1,6 @@
 // lib/pdfProcessor.ts
 import { createClient } from '@supabase/supabase-js';
-// Using require for pdf-parse as it's more stable in Node.js environments
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdf = require('pdf-parse');
 
