@@ -10,8 +10,10 @@ import {
     RefreshCw, 
     Loader2
 } from 'lucide-react';
-// Import the legacy build of pdfjs to match our type declaration
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import * as pdfjs from 'pdfjs-dist';
+
+// THE FIX: The worker file for this library version ends in .js, not .mjs
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
 interface SourceMaterial {
   id: string;
@@ -34,14 +36,25 @@ export default function BrandMaterialsClientPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Configure the worker on initial client-side load.
-    if (pdfjs.GlobalWorkerOptions) {
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.mjs`;
+  const fetchMaterials = async () => {
+    setIsLoadingMaterials(true);
+    setFetchError(null);
+    try {
+      const response = await fetch('/api/source-materials');
+      if (!response.ok) throw new Error(`Failed to fetch materials: ${response.status}`);
+      const data: SourceMaterial[] = await response.json();
+      setMaterials(data);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsLoadingMaterials(false);
     }
+  };
+
+  useEffect(() => {
     fetchMaterials();
   }, []);
-  
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -67,7 +80,6 @@ export default function BrandMaterialsClientPage() {
             for (let i = 1; i <= doc.numPages; i++) {
               const page = await doc.getPage(i);
               const content = await page.getTextContent();
-              // This line uses `any` because our custom declaration is basic. The linter rule is disabled here.
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const strings = content.items.map((item: any) => 'str' in item ? item.str : '');
               fullText += strings.join(' ') + '\n';
@@ -86,21 +98,6 @@ export default function BrandMaterialsClientPage() {
       }
     } else {
         setStatusMessage({type: 'info', text: `Selected "${file.name}". This file will be stored without text analysis.`});
-    }
-  };
-
-  const fetchMaterials = async () => {
-    setIsLoadingMaterials(true);
-    setFetchError(null);
-    try {
-      const response = await fetch('/api/source-materials');
-      if (!response.ok) throw new Error(`Failed to fetch materials: ${response.status}`);
-      const data: SourceMaterial[] = await response.json();
-      setMaterials(data);
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoadingMaterials(false);
     }
   };
   
