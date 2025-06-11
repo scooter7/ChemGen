@@ -1,5 +1,5 @@
 // app/(app)/brand-materials/page.tsx
-"use client";
+"use client"; // This is CRITICAL. It makes this component client-side.
 
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
