@@ -1,16 +1,15 @@
 // app/(app)/brand-materials/page.tsx
-"use client"; // This is the critical line that fixes the build error.
+"use client";
 
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
 
-// Now that this is a Client Component, we can legally use ssr: false.
-// This ensures the BrandMaterialsClientPage and its dependencies (pdfjs-dist)
-// are never executed on the server during the build process.
+// This dynamic import with ssr:false is the key to preventing build errors.
+// It tells Next.js to not render the component on the server at all.
 const BrandMaterialsClientPage = dynamic(
   () => import('./BrandMaterialsClientPage'),
   { 
-    ssr: false, // This is the key to preventing the build error.
+    ssr: false, 
     loading: () => (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
