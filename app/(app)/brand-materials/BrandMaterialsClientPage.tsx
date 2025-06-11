@@ -12,8 +12,9 @@ import {
 } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 
-// THE FIX: Hardcode the workerSrc URL to a known-good, stable version that exists on the CDN.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.worker.mjs`;
+// THE FIX: Hardcode the workerSrc URL to the EXACT version reported in the runtime error log.
+// This ensures the main library and the worker script are perfectly synchronized.
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs`;
 
 interface SourceMaterial {
   id: string;
