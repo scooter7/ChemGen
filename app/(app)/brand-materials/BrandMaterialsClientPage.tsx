@@ -12,8 +12,9 @@ import {
 } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
 
-// THE FIX: The worker file for this library version ends in .js, not .mjs
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
+// THE FIX: Hardcode the workerSrc URL to a known-good, stable version from the CDN.
+// This bypasses any incorrect version reporting from the library itself.
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.188/pdf.worker.mjs`;
 
 interface SourceMaterial {
   id: string;
@@ -27,10 +28,12 @@ export default function BrandMaterialsClientPage() {
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState<string>("");
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
+  
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
