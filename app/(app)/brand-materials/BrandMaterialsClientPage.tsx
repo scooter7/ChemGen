@@ -10,8 +10,8 @@ import {
     RefreshCw, 
     Loader2
 } from 'lucide-react';
-// The module's type is now correctly declared in `types/pdfjs-dist.d.ts`
-import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
+// Import the legacy build of pdfjs to match our type declaration
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 interface SourceMaterial {
   id: string;
@@ -25,19 +25,17 @@ export default function BrandMaterialsClientPage() {
   const [materials, setMaterials] = useState<SourceMaterial[]>([]);
   const [isLoadingMaterials, setIsLoadingMaterials] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDescription, setFileDescription] = useState<string>("");
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
-  
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingMaterialId, setDeletingMaterialId] = useState<string | null>(null);
 
-  // Configure the workerSrc on initial load. This only runs on the client.
   useEffect(() => {
+    // Configure the worker on initial client-side load.
     if (pdfjs.GlobalWorkerOptions) {
       pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.mjs`;
     }
@@ -69,8 +67,7 @@ export default function BrandMaterialsClientPage() {
             for (let i = 1; i <= doc.numPages; i++) {
               const page = await doc.getPage(i);
               const content = await page.getTextContent();
-              // THIS IS THE FIX: The 'any' type is needed because the custom type declaration is basic.
-              // We disable the linter for this specific line.
+              // This line uses `any` because our custom declaration is basic. The linter rule is disabled here.
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const strings = content.items.map((item: any) => 'str' in item ? item.str : '');
               fullText += strings.join(' ') + '\n';
@@ -88,7 +85,7 @@ export default function BrandMaterialsClientPage() {
         setIsParsing(false);
       }
     } else {
-        setStatusMessage({type: 'info', text: `Selected "${file.name}". Non-PDF files will be stored without text analysis.`});
+        setStatusMessage({type: 'info', text: `Selected "${file.name}". This file will be stored without text analysis.`});
     }
   };
 
