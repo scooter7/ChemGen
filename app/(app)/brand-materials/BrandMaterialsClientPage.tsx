@@ -13,7 +13,7 @@ import {
 import * as pdfjs from 'pdfjs-dist';
 
 // THE FIX: Hardcode the workerSrc URL to a known-good, stable version that exists on the CDN.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.269/pdf.worker.mjs`;
 
 interface SourceMaterial {
   id: string;
