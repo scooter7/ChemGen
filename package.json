@@ -24,7 +24,7 @@
     "next": "15.3.2",
     "next-auth": "^4.24.11",
     "pdf-parse": "^1.1.1",
-    "pdfjs-dist": "^5.2.133",
+    "pdfjs-dist": "^4.4.188",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.56.4",
