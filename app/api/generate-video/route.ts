@@ -30,7 +30,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
-// The specific model version on Replicate
+// CORRECTED: The latest, correct model version on Replicate
 const STABLE_VIDEO_DIFFUSION_MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172638";
 
 export async function POST(req: NextRequest) {
@@ -52,18 +52,24 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Run the prediction on Replicate
-    const output = await replicate.run(STABLE_VIDEO_DIFFUSION_MODEL, {
-      input: {
-        input_image: imageUrl,
-        decoding_t: 7,
-        video_length: '25_frames_with_svd_xt',
+    const output = await replicate.run(
+      STABLE_VIDEO_DIFFUSION_MODEL,
+      {
+        input: {
+          input_image: imageUrl,
+          decoding_t: 7, // Motion strength
+          video_length: '25_frames_with_svd_xt', // Output length
+          sizing_strategy: 'maintain_aspect_ratio',
+          motion_bucket_id: 127,
+          frames_per_second: 6
+        }
       }
-    });
+    );
     
     const generatedVideoUrl = output as unknown as string;
 
     if (!generatedVideoUrl) {
-      throw new Error("Video generation failed: Replicate did not return a video URL.");
+        throw new Error("Video generation failed: Replicate did not return a video URL.");
     }
     
     // 2. Fetch the generated video to store it ourselves
