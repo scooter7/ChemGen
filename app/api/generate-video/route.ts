@@ -7,10 +7,10 @@ import { nanoid } from 'nanoid';
 import Replicate from 'replicate';
 
 interface VideoRequest {
-  imageUrl: string;
+  prompt: string;
 }
 
-// Augment the session type to include the user ID
+// Augment NextAuth’s Session type to include `user.id`
 declare module 'next-auth' {
   interface Session {
     user: {
@@ -19,19 +19,18 @@ declare module 'next-auth' {
   }
 }
 
-// Initialize Replicate with the API token
+// Initialize Replicate
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN!,
 });
 
-// Supabase admin client for uploading the final video
+// Supabase admin client for uploads
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
-// Read the model slug (including version hash) from env
-// — narrow its type to satisfy replicate.run’s signature
+// Your Veo-3 model slug + version from .env
 const VIDEO_MODEL = process.env
   .REPLICATE_VIDEO_MODEL! as `${string}/${string}` | `${string}/${string}:${string}`;
 
@@ -45,77 +44,57 @@ export async function POST(req: NextRequest) {
 
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { imageUrl } = (await req.json()) as VideoRequest;
-    if (!imageUrl) {
+    // 1️⃣ Parse & validate prompt
+    const { prompt } = (await req.json()) as VideoRequest;
+    if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json(
-        { error: 'Image URL is required.' },
+        { error: 'Missing or invalid `prompt` in request body.' },
         { status: 400 }
       );
     }
 
-    // 1. Run the prediction on Replicate using your chosen model
+    // 2️⃣ Run Veo-3 (text→video)
     const output = await replicate.run(VIDEO_MODEL, {
-      input: {
-        input_image: imageUrl,
-        decoding_t: 7,                       // Motion strength
-        video_length: '25_frames_with_svd_xt',
-        sizing_strategy: 'maintain_aspect_ratio',
-        motion_bucket_id: 127,
-        frames_per_second: 6,
-      },
+      input: { prompt },
     });
-
-    const generatedVideoUrl = output as unknown as string;
-    if (!generatedVideoUrl) {
-      throw new Error(
-        'Video generation failed: Replicate did not return a video URL.'
-      );
+    const videoUrl = output as unknown as string;
+    if (!videoUrl) {
+      throw new Error('Replicate did not return a video URL.');
     }
 
-    // 2. Fetch the video bytes
-    const videoResponse = await fetch(generatedVideoUrl);
-    if (!videoResponse.ok) {
-      throw new Error(
-        `Failed to fetch generated video: ${videoResponse.statusText}`
-      );
+    // 3️⃣ Download the generated video
+    const resp = await fetch(videoUrl);
+    if (!resp.ok) {
+      throw new Error(`Failed to fetch video: ${resp.statusText}`);
     }
-    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+    const videoBuffer = Buffer.from(await resp.arrayBuffer());
 
-    // 3. Upload to Supabase Storage
+    // 4️⃣ Upload to Supabase
     const videoId = nanoid();
-    const filePathInBucket = `videos/${session.user.id}/${videoId}.mp4`;
+    const path = `videos/${session.user.id}/${videoId}.mp4`;
     const { error: uploadError } = await supabaseAdmin.storage
       .from(VIDEO_BUCKET)
-      .upload(filePathInBucket, videoBuffer, {
-        contentType: 'video/mp4',
-        upsert: false,
-      });
+      .upload(path, videoBuffer, { contentType: 'video/mp4' });
     if (uploadError) {
       throw new Error(`Supabase upload failed: ${uploadError.message}`);
     }
 
-    // 4. Make it public and return the URL
-    const { data: publicUrlData } = supabaseAdmin.storage
+    // 5️⃣ Return your public URL
+    const { data } = supabaseAdmin.storage
       .from(VIDEO_BUCKET)
-      .getPublicUrl(filePathInBucket);
+      .getPublicUrl(path);
 
     return NextResponse.json(
-      {
-        message: 'Video generated successfully!',
-        videoUrl: publicUrlData.publicUrl,
-      },
+      { message: 'Video generated!', videoUrl: data.publicUrl },
       { status: 200 }
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('Error in video generation route:', error);
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    console.error('Video route error:', error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
