@@ -8,7 +8,6 @@ import NextImage from 'next/image';
 // Interfaces for data structures
 interface VideoFormState {
   prompt: string;
-  duration: 15 | 30 | 45 | 60;
   selectedImageUrl: string | null;
 }
 
@@ -21,18 +20,14 @@ interface ImageResource {
 export default function VideoGeneratorPage() {
   const [formData, setFormData] = useState<VideoFormState>({
     prompt: '',
-    duration: 15,
     selectedImageUrl: null,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
-
-  // State for the image library
   const [images, setImages] = useState<ImageResource[]>([]);
   const [isLoadingImages, setIsLoadingImages] = useState(true);
 
-  // Fetch user's image library on component mount
   useEffect(() => {
     const fetchImageLibrary = async () => {
       setIsLoadingImages(true);
@@ -51,12 +46,12 @@ export default function VideoGeneratorPage() {
   }, []);
 
   const handleInputChange = (
-    event: React.ChangeEvent<HTMLTextAreaElement | HTMLSelectElement>
+    event: React.ChangeEvent<HTMLTextAreaElement>
   ) => {
     const { name, value } = event.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'duration' ? parseInt(value, 10) : value,
+      [name]: value,
     }));
   };
 
@@ -153,7 +148,7 @@ export default function VideoGeneratorPage() {
                 id="prompt" name="prompt" rows={4}
                 value={formData.prompt} onChange={handleInputChange}
                 className="mt-1 block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-                placeholder="Describe the motion, e.g., 'camera pans left', 'subtle zoom in', 'wind blowing through the trees'. Note: This is for future models; current model uses default motion."
+                placeholder="e.g., 'camera pans left', 'subtle zoom in', 'wind blowing through the trees'. Note: This is for future models; current model uses default motion."
               />
             </div>
             

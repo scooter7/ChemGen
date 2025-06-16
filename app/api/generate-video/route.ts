@@ -1,17 +1,28 @@
 // app/api/generate-video/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
+import { getServerSession, type DefaultSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
+import Replicate from 'replicate';
 
 interface VideoRequest {
   imageUrl: string;
-  prompt?: string;
 }
 
-const HUGGING_FACE_API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-video-diffusion-img2vid-xt";
-const HF_TOKEN = process.env.HUGGING_FACE_TOKEN;
+// Augment the session type to include the user ID
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}
+
+// Initialize Replicate with the API token
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN,
+});
 
 // Supabase admin client for uploading the final video
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -19,14 +30,17 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
+// The specific model version on Replicate
+const STABLE_VIDEO_DIFFUSION_MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172638";
+
 export async function POST(req: NextRequest) {
-  if (!HF_TOKEN) {
-    return NextResponse.json({ error: 'Hugging Face API token is not configured on the server.' }, { status: 500 });
+  if (!process.env.REPLICATE_API_TOKEN) {
+    return NextResponse.json({ error: 'Replicate API token is not configured.' }, { status: 500 });
   }
 
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    if (!session || !session.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -37,34 +51,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Image URL is required.' }, { status: 400 });
     }
 
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch the provided image from its URL.`);
-    }
-    const imageBlob = await imageResponse.blob();
-
-    const hfResponse = await fetch(HUGGING_FACE_API_URL, {
-        headers: { Authorization: `Bearer ${HF_TOKEN}` },
-        method: "POST",
-        body: imageBlob,
+    // 1. Run the prediction on Replicate
+    const output = await replicate.run(STABLE_VIDEO_DIFFUSION_MODEL, {
+      input: {
+        input_image: imageUrl,
+        decoding_t: 7,
+        video_length: '25_frames_with_svd_xt',
+      }
     });
+    
+    const generatedVideoUrl = output as unknown as string;
 
-    if (!hfResponse.ok) {
-        // Provide more specific error messages for common Hugging Face issues
-        if (hfResponse.status === 404) {
-            throw new Error("The video generation model was not found. It might be offline or has been moved.");
-        }
-        if (hfResponse.status === 503) {
-            throw new Error("The video generation model is currently loading. Please wait a minute and try again.");
-        }
-        const errorText = await hfResponse.text();
-        console.error("Hugging Face API Error:", errorText);
-        throw new Error(`The video generation service failed with status ${hfResponse.status}: ${errorText}`);
+    if (!generatedVideoUrl) {
+      throw new Error("Video generation failed: Replicate did not return a video URL.");
     }
+    
+    // 2. Fetch the generated video to store it ourselves
+    const videoResponse = await fetch(generatedVideoUrl);
+    if (!videoResponse.ok) {
+        throw new Error(`Failed to fetch generated video from Replicate: ${videoResponse.statusText}`);
+    }
+    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
-    const videoBlob = await hfResponse.blob();
-    const videoBuffer = Buffer.from(await videoBlob.arrayBuffer());
-
+    // 3. Upload the new video to our own Supabase Storage
     const videoId = nanoid();
     const filePathInBucket = `videos/${session.user.id}/${videoId}.mp4`;
 
@@ -76,9 +85,10 @@ export async function POST(req: NextRequest) {
       });
 
     if (uploadError) {
-        throw new Error(`Failed to upload generated video to storage: ${uploadError.message}`);
+        throw new Error(`Failed to upload video to Supabase: ${uploadError.message}`);
     }
 
+    // 4. Get the public URL for our copy of the video
     const { data: publicUrlData } = supabaseAdmin.storage.from(VIDEO_BUCKET).getPublicUrl(filePathInBucket);
     
     return NextResponse.json(
