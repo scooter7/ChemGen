@@ -31,6 +31,7 @@ import {
   UploadCloud,
   Layers,
   Save,
+  PenSquare, // Revise Icon
   LucideProps,
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
@@ -85,6 +86,11 @@ interface SegmentedVariation {
 }
 
 export default function ContentCreationForm() {
+  // State for revision feature
+  const [revisingId, setRevisingId] = useState<string | null>(null); // 'main' or segmentTag
+  const [revisionInstructions, setRevisionInstructions] = useState('');
+  const [isRevising, setIsRevising] = useState(false);
+  
   const initializeArchetypeRefinements = (): Record<string, number> => {
     const refinements: Record<string, number> = {};
     const archetypesToUse = samfordClientArchetypes || [];
@@ -564,6 +570,63 @@ export default function ContentCreationForm() {
     }
   };
 
+  const handleReviseClick = (id: string) => {
+    setRevisingId(id);
+    setRevisionInstructions('');
+  };
+
+  const handleCancelRevision = () => {
+    setRevisingId(null);
+    setRevisionInstructions('');
+  };
+
+  const handleGenerateRevision = async () => {
+    if (!revisingId || !revisionInstructions.trim()) {
+        setGeneralStatusMessage({ type: 'error', text: 'Please provide revision instructions.' });
+        return;
+    }
+
+    setIsRevising(true);
+    setGeneralStatusMessage({ type: 'info', text: 'Generating revision...' });
+
+    const originalContent = revisingId === 'main' 
+        ? editableContent 
+        : editedSegmentedContent[revisingId];
+
+    try {
+        const response = await fetch('/api/revise-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                originalContent,
+                revisionInstructions,
+            }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || 'Failed to generate revision.');
+        }
+
+        if (revisingId === 'main') {
+            setEditableContent(result.revisedContent);
+            setGeneratedData(prev => prev ? { ...prev, generatedText: result.revisedContent } : { generatedText: result.revisedContent });
+        } else {
+            setEditedSegmentedContent(prev => ({
+                ...prev,
+                [revisingId]: result.revisedContent,
+            }));
+        }
+        setGeneralStatusMessage({ type: 'success', text: 'Content revised successfully!' });
+        handleCancelRevision();
+
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+        setGeneralStatusMessage({ type: 'error', text: `Revision failed: ${message}` });
+    } finally {
+        setIsRevising(false);
+    }
+  };
 
   const handleFetchImageRecommendations = async () => {
     if (!editableContent && !generatedData?.generatedText) {
@@ -788,10 +851,41 @@ export default function ContentCreationForm() {
     </label>
   );
 
+  // Reusable component for the revision UI
+  const RevisionBox = ({ contentId }: { contentId: string }) => (
+    <div className="mt-3 p-4 border border-dashed border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-gray-800 rounded-md space-y-3">
+        <label htmlFor={`revision-instructions-${contentId}`} className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+            Revision Instructions
+        </label>
+        <textarea
+            id={`revision-instructions-${contentId}`}
+            rows={3}
+            value={revisionInstructions}
+            onChange={(e) => setRevisionInstructions(e.target.value)}
+            className="block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+            placeholder="e.g., 'Make it more concise', 'Add a call to action to visit our website', 'Change the tone to be more formal'"
+        />
+        <div className="flex justify-end space-x-3">
+            <button type="button" onClick={handleCancelRevision} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-50 dark:hover:bg-gray-500">
+                Cancel
+            </button>
+            <button
+                type="button"
+                onClick={handleGenerateRevision}
+                disabled={isRevising}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-sm disabled:opacity-60"
+            >
+                {isRevising ? <Loader2 className="mr-2 h-4 w-4 animate-spin inline" /> : null}
+                {isRevising ? 'Revising...' : 'Generate Revision'}
+            </button>
+        </div>
+    </div>
+  );
+
   return (
     <div className="bg-white dark:bg-gray-800 p-6 md:p-8 shadow-xl rounded-lg">
       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-        Hi {/* TODO: Get user's name */}, what do you want to say?
+        Hi, what do you want to say?
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -1140,285 +1234,57 @@ export default function ContentCreationForm() {
                 Generated Content (Editable)
               </h3>
               <div className="flex space-x-2">
-                <button
-                  onClick={handleSaveToHistory}
-                  disabled={isSavingHistory}
-                  className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-md flex items-center disabled:opacity-50"
-                  title="Save to history"
-                >
-                  {isSavingHistory ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
-                  {isSavingHistory ? "Saving..." : "Save"}
-                </button>
-                <button
-                  onClick={() => {
-                    if (editableContent) {
-                      navigator.clipboard
-                        .writeText(editableContent)
-                        .then(() => setGeneralStatusMessage({ type: 'success', text: 'Content copied!' }))
-                        .catch((err) =>
-                          console.error("Copy failed: ", err)
-                        );
-                    }
-                  }}
-                  className="px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 hover:bg-indigo-200 dark:hover:bg-indigo-900 rounded-md flex items-center"
-                  title="Copy generated text"
-                >
-                  <Copy size={14} className="mr-1.5" />
-                  Copy
-                </button>
-                <button
-                  onClick={() => alert("Export to be implemented.")}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center"
-                  title="Export content"
-                >
-                  <Download size={14} className="mr-1.5" />
-                  Export
-                </button>
+                <button onClick={() => handleReviseClick('main')} className="px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 hover:bg-amber-200 dark:hover:bg-amber-900 rounded-md flex items-center"><PenSquare size={14} className="mr-1.5" />Revise</button>
+                <button onClick={handleSaveToHistory} disabled={isSavingHistory} className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-md flex items-center disabled:opacity-50" title="Save to history">{isSavingHistory ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}{isSavingHistory ? "Saving..." : "Save"}</button>
+                <button onClick={() => { if (editableContent) { navigator.clipboard.writeText(editableContent).then(() => setGeneralStatusMessage({ type: 'success', text: 'Content copied!' }))}}} className="px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 hover:bg-indigo-200 dark:hover:bg-indigo-900 rounded-md flex items-center" title="Copy generated text"><Copy size={14} className="mr-1.5" />Copy</button>
+                <button onClick={() => alert("Export to be implemented.")} className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center" title="Export content"><Download size={14} className="mr-1.5" />Export</button>
               </div>
             </div>
+            {revisingId === 'main' && <RevisionBox contentId="main" />}
             <RichTextEditor
               initialContent={editableContent}
-              onChange={(newContent) => {
-                setEditableContent(newContent);
-              }}
+              onChange={setEditableContent}
             />
           </div>
 
           <div className="p-4 border-t dark:border-gray-700 rounded-lg shadow bg-slate-50 dark:bg-gray-800/60 mt-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3 flex items-center">
-              <Layers size={20} className="mr-2 text-indigo-600 dark:text-indigo-400" />
-              Create Version Segmentations
-              <Info
-                size={14}
-                className="ml-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer"
-                onClick={() =>
-                  alert(
-                    'Define segments (e.g., "In-State", "Out-of-State", "Athlete") to generate tailored versions of the content above.'
-                  )
-                }
-              />
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3 flex items-center"><Layers size={20} className="mr-2 text-indigo-600 dark:text-indigo-400" />Create Version Segmentations<Info size={14} className="ml-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer" onClick={() => alert('Define segments (e.g., "In-State", "Out-of-State", "Athlete") to generate tailored versions of the content above.')}/></h3>
             <div className="mb-3">
-              <label htmlFor="segmentationInput" className="sr-only">
-                Add segment tags (comma-separated)
-              </label>
-              <input
-                type="text"
-                id="segmentationInput"
-                value={segmentationInput}
-                onChange={handleSegmentationInputChange}
-                onKeyDown={handleSegmentationInputKeyDown}
-                placeholder="Type segment(s), press Enter or comma to add..."
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-              />
+              <label htmlFor="segmentationInput" className="sr-only">Add segment tags (comma-separated)</label>
+              <input type="text" id="segmentationInput" value={segmentationInput} onChange={handleSegmentationInputChange} onKeyDown={handleSegmentationInputKeyDown} placeholder="Type segment(s), press Enter or comma to add..." className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"/>
             </div>
-            {activeSegmentationTags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {activeSegmentationTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeSegmentationTag(tag)}
-                      className="ml-1.5 flex-shrink-0 text-sky-500 hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-100 focus:outline-none rounded-full hover:bg-sky-200 dark:hover:bg-sky-700 p-0.5"
-                      aria-label={`Remove ${tag}`}
-                    >
-                      <span className="sr-only">Remove</span> ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleGenerateSegmentedContent}
-              disabled={isLoadingSegments || activeSegmentationTags.length === 0}
-              className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-md shadow-sm disabled:opacity-60"
-            >
-              {isLoadingSegments ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating
-                  Segments...
-                </>
-              ) : (
-                "Generate Segmented Content"
-              )}
-            </button>
-            {segmentationError && (
-              <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md text-sm">
-                <AlertTriangle className="inline mr-2 h-5 w-5" />
-                Error: {segmentationError}
-              </div>
-            )}
+            {activeSegmentationTags.length > 0 && (<div className="flex flex-wrap gap-2 mb-3">{activeSegmentationTags.map((tag) => (<span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300">{tag}<button type="button" onClick={() => removeSegmentationTag(tag)} className="ml-1.5 flex-shrink-0 text-sky-500 hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-100 focus:outline-none rounded-full hover:bg-sky-200 dark:hover:bg-sky-700 p-0.5" aria-label={`Remove ${tag}`}><span className="sr-only">Remove</span>×</button></span>))}</div>)}
+            <button type="button" onClick={handleGenerateSegmentedContent} disabled={isLoadingSegments || activeSegmentationTags.length === 0} className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-md shadow-sm disabled:opacity-60">{isLoadingSegments ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Segments...</>) : ("Generate Segmented Content")}</button>
+            {segmentationError && (<div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md text-sm"><AlertTriangle className="inline mr-2 h-5 w-5" />Error: {segmentationError}</div>)}
           </div>
 
           {segmentedContent && segmentedContent.length > 0 && (
             <div className="mt-6 space-y-4">
-              <h4 className="text-md font-semibold text-gray-700 dark:text-white">
-                Segmented Content Variations:
-              </h4>
+              <h4 className="text-md font-semibold text-gray-700 dark:text-white">Segmented Content Variations:</h4>
               {segmentedContent.map((variation, index) => (
-                <div
-                  key={index}
-                  className="p-4 border rounded-lg shadow bg-white dark:bg-gray-800"
-                >
+                <div key={index} className="p-4 border rounded-lg shadow bg-white dark:bg-gray-800">
                   <div className="flex justify-between items-center mb-2">
-                    <h5 className="font-semibold text-indigo-600 dark:text-indigo-400">
-                      {variation.segmentTag} Version
-                    </h5>
+                    <h5 className="font-semibold text-indigo-600 dark:text-indigo-400">{variation.segmentTag} Version</h5>
                     <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleSaveSegmentToHistory(variation)}
-                          disabled={savingSegmentTag === variation.segmentTag}
-                          className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-md flex items-center disabled:opacity-50"
-                          title="Save segment to history"
-                        >
-                          {savingSegmentTag === variation.segmentTag ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
-                          {savingSegmentTag === variation.segmentTag ? "Saving..." : "Save"}
-                        </button>
-                        <button
-                          onClick={() => {
-                            const contentToCopy = editedSegmentedContent[variation.segmentTag] || variation.generatedText;
-                            navigator.clipboard.writeText(contentToCopy)
-                              .then(() => setGeneralStatusMessage({ type: 'success', text: `Segment "${variation.segmentTag}" copied!` }))
-                              .catch(err => console.error("Copy failed: ", err));
-                          }}
-                          className="px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 hover:bg-indigo-200 dark:hover:bg-indigo-900 rounded-md flex items-center"
-                          title="Copy segment text"
-                        >
-                          <Copy size={14} className="mr-1.5" />
-                          Copy
-                        </button>
-                        <button
-                          onClick={() => alert("Export to be implemented.")}
-                          className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center"
-                          title="Export segment"
-                        >
-                          <Download size={14} className="mr-1.5" />
-                          Export
-                        </button>
-                      </div>
+                        <button onClick={() => handleReviseClick(variation.segmentTag)} className="px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 hover:bg-amber-200 dark:hover:bg-amber-900 rounded-md flex items-center"><PenSquare size={14} className="mr-1.5" />Revise</button>
+                        <button onClick={() => handleSaveSegmentToHistory(variation)} disabled={savingSegmentTag === variation.segmentTag} className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-md flex items-center disabled:opacity-50" title="Save segment to history">{savingSegmentTag === variation.segmentTag ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}{savingSegmentTag === variation.segmentTag ? "Saving..." : "Save"}</button>
+                        <button onClick={() => { const contentToCopy = editedSegmentedContent[variation.segmentTag] || variation.generatedText; navigator.clipboard.writeText(contentToCopy).then(() => setGeneralStatusMessage({ type: 'success', text: `Segment "${variation.segmentTag}" copied!` }))}} className="px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 hover:bg-indigo-200 dark:hover:bg-indigo-900 rounded-md flex items-center" title="Copy segment text"><Copy size={14} className="mr-1.5" />Copy</button>
+                        <button onClick={() => alert("Export to be implemented.")} className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center" title="Export segment"><Download size={14} className="mr-1.5" />Export</button>
+                    </div>
                   </div>
-                  {variation.justification && (
-                    <p className="text-xs italic text-gray-500 dark:text-gray-400 mb-2">
-                      Justification: {variation.justification}
-                    </p>
-                  )}
-                  <RichTextEditor
-                    initialContent={
-                      editedSegmentedContent[variation.segmentTag] ||
-                      variation.generatedText
-                    }
-                    onChange={(newContent) =>
-                      handleSegmentedContentChange(
-                        variation.segmentTag,
-                        newContent
-                      )
-                    }
-                    editable={true}
-                  />
+                  {variation.justification && <p className="text-xs italic text-gray-500 dark:text-gray-400 mb-2">Justification: {variation.justification}</p>}
+                  {revisingId === variation.segmentTag && <RevisionBox contentId={variation.segmentTag} />}
+                  <RichTextEditor initialContent={editedSegmentedContent[variation.segmentTag] || variation.generatedText} onChange={(newContent) => handleSegmentedContentChange(variation.segmentTag, newContent)} editable={true} />
                 </div>
               ))}
             </div>
           )}
 
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 rounded-lg shadow bg-white dark:bg-gray-800 mt-6">
-            <button
-              type="button"
-              onClick={handleFetchImageRecommendations}
-              disabled={
-                isLoadingRecommendations ||
-                !(editableContent && editableContent.trim())
-              }
-              className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-md shadow-sm disabled:opacity-60 mb-4"
-            >
-              <ImageIconLucide size={18} className="mr-2" />
-              {isLoadingRecommendations ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Finding
-                  Images...
-                </>
-              ) : (
-                "Suggest Matching Images"
-              )}
-            </button>
-
-            {recommendationError && (
-              <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md text-sm">
-                <AlertTriangle className="inline mr-2 h-5 w-5" />
-                Error: {recommendationError}
-              </div>
-            )}
-            {generalStatusMessage &&
-              generalStatusMessage.type === "info" &&
-              generalStatusMessage.text.includes(
-                "No specific image recommendations"
-              ) && (
-                <p className="mt-2 text-sm p-2 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                  {generalStatusMessage.text}
-                </p>
-              )}
-            {imageRecommendations && imageRecommendations.length > 0 && (
-              <div>
-                <h4 className="text-md font-semibold text-gray-700 dark:text-white mb-3">
-                  Recommended Images:
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-4">
-                  {imageRecommendations.map((img) => (
-                    <div
-                      key={img.id}
-                      className="border rounded-lg overflow-hidden shadow-sm dark:border-gray-700 hover:shadow-lg transition-all duration-200 cursor-pointer group/imgitem relative"
-                      onClick={() =>
-                        alert(
-                          `Selected image: ${img.fileName}\nURL: ${
-                            img.publicUrl || "N/A"
-                          }`
-                        )
-                      }
-                      title={`Click to select: ${img.fileName}\nDescription: ${
-                        img.aiGeneratedDescription || "N/A"
-                      }`}
-                    >
-                      {img.publicUrl ? (
-                        <div className="w-full h-32 relative block">
-                          <NextImage
-                            src={img.publicUrl}
-                            alt={img.aiGeneratedDescription || img.fileName}
-                            layout="fill"
-                            objectFit="cover"
-                            className="group-hover/imgitem:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-full h-32 flex items-center justify-center bg-gray-200 dark:bg-gray-600">
-                          <ImageIconLucide className="h-12 w-12 text-gray-400" />
-                        </div>
-                      )}
-                      <div className="p-2 bg-white/80 dark:bg-black/70 backdrop-blur-sm">
-                        <p
-                          className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate"
-                          title={img.fileName}
-                        >
-                          {img.fileName}
-                        </p>
-                        <p
-                          className="text-xs text-gray-600 dark:text-gray-300 h-10 overflow-y-auto custom-scrollbar"
-                          title={img.aiGeneratedDescription || ""}
-                        >
-                          {img.aiGeneratedDescription
-                            ? img.aiGeneratedDescription.substring(0, 45) +
-                              (img.aiGeneratedDescription.length > 45 ? "..." : "")
-                            : "No AI description"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <button type="button" onClick={handleFetchImageRecommendations} disabled={isLoadingRecommendations || !(editableContent && editableContent.trim())} className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-md shadow-sm disabled:opacity-60 mb-4"><ImageIconLucide size={18} className="mr-2" />{isLoadingRecommendations ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Finding Images...</>) : ("Suggest Matching Images")}</button>
+            {recommendationError && (<div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md text-sm"><AlertTriangle className="inline mr-2 h-5 w-5" />Error: {recommendationError}</div>)}
+            {generalStatusMessage && generalStatusMessage.type === "info" && generalStatusMessage.text.includes("No specific image recommendations") && (<p className="mt-2 text-sm p-2 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">{generalStatusMessage.text}</p>)}
+            {imageRecommendations && imageRecommendations.length > 0 && (<div><h4 className="text-md font-semibold text-gray-700 dark:text-white mb-3">Recommended Images:</h4><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-4">{imageRecommendations.map((img) => (<div key={img.id} className="border rounded-lg overflow-hidden shadow-sm dark:border-gray-700 hover:shadow-lg transition-all duration-200 cursor-pointer group/imgitem relative" onClick={() => alert(`Selected image: ${img.fileName}\nURL: ${img.publicUrl || "N/A"}`)} title={`Click to select: ${img.fileName}\nDescription: ${img.aiGeneratedDescription || "N/A"}`}>{img.publicUrl ? (<div className="w-full h-32 relative block"><NextImage src={img.publicUrl} alt={img.aiGeneratedDescription || img.fileName} layout="fill" objectFit="cover" className="group-hover/imgitem:scale-105 transition-transform duration-300"/></div>) : (<div className="w-full h-32 flex items-center justify-center bg-gray-200 dark:bg-gray-600"><ImageIconLucide className="h-12 w-12 text-gray-400" /></div>)}<div className="p-2 bg-white/80 dark:bg-black/70 backdrop-blur-sm"><p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate" title={img.fileName}>{img.fileName}</p><p className="text-xs text-gray-600 dark:text-gray-300 h-10 overflow-y-auto custom-scrollbar" title={img.aiGeneratedDescription || ""}>{img.aiGeneratedDescription ? img.aiGeneratedDescription.substring(0, 45) + (img.aiGeneratedDescription.length > 45 ? "..." : "") : "No AI description"}</p></div></div>))}</div></div>)}
           </div>
         </div>
       )}
