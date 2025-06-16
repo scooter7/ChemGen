@@ -2,13 +2,13 @@
 "use client";
 
 import React, { useState, useEffect, FormEvent } from 'react';
-import { Video, Film, Clock, Loader2, AlertCircle, Image as ImageIconLucide, CheckCircle } from 'lucide-react';
+import { Video, Film, Loader2, AlertCircle, Image as ImageIconLucide, CheckCircle } from 'lucide-react';
 import NextImage from 'next/image';
 
 // Interfaces for data structures
 interface VideoFormState {
   prompt: string;
-  duration: 15 | 30 | 45 | 60; // Duration is now more for context, as the model has a fixed output length
+  duration: 15 | 30 | 45 | 60;
   selectedImageUrl: string | null;
 }
 
@@ -81,7 +81,6 @@ export default function VideoGeneratorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageUrl: formData.selectedImageUrl,
-          // The prompt can be used for future models, though SVD doesn't use it.
           prompt: formData.prompt, 
         }),
       });
@@ -113,7 +112,6 @@ export default function VideoGeneratorPage() {
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* Left Column: Image Selection */}
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
                 <ImageIconLucide className="mr-2 h-5 w-5" />
@@ -145,7 +143,6 @@ export default function VideoGeneratorPage() {
             )}
           </div>
           
-          {/* Right Column: Prompt and Settings */}
           <div className="space-y-6">
             <div>
               <label htmlFor="prompt" className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
