@@ -30,7 +30,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
-// CORRECTED: The latest, correct model version on Replicate
+// THIS IS THE CORRECTED LINE: The latest, correct model version hash on Replicate.
 const STABLE_VIDEO_DIFFUSION_MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172638";
 
 export async function POST(req: NextRequest) {
