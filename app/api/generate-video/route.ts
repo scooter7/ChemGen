@@ -30,8 +30,10 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
-// Read the model slug (and version hash) from env
-const VIDEO_MODEL = process.env.REPLICATE_VIDEO_MODEL!;
+// Read the model slug (including version hash) from env
+// — narrow its type to satisfy replicate.run’s signature
+const VIDEO_MODEL = process.env
+  .REPLICATE_VIDEO_MODEL! as `${string}/${string}` | `${string}/${string}:${string}`;
 
 export async function POST(req: NextRequest) {
   if (!process.env.REPLICATE_API_TOKEN) {
@@ -109,9 +111,7 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    // Narrow the error type so we don’t use `any`
-    const message =
-      error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error in video generation route:', error);
     return NextResponse.json(
       { error: message },
