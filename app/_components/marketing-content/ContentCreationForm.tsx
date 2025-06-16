@@ -31,7 +31,7 @@ import {
   UploadCloud,
   Layers,
   Save,
-  PenSquare, // Revise Icon
+  PenSquare,
   LucideProps,
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
@@ -86,9 +86,7 @@ interface SegmentedVariation {
 }
 
 export default function ContentCreationForm() {
-  // State for revision feature
-  const [revisingId, setRevisingId] = useState<string | null>(null); // 'main' or segmentTag
-  const [revisionInstructions, setRevisionInstructions] = useState('');
+  const [revisingId, setRevisingId] = useState<string | null>(null);
   const [isRevising, setIsRevising] = useState(false);
   
   const initializeArchetypeRefinements = (): Record<string, number> => {
@@ -572,16 +570,10 @@ export default function ContentCreationForm() {
 
   const handleReviseClick = (id: string) => {
     setRevisingId(id);
-    setRevisionInstructions('');
   };
 
-  const handleCancelRevision = () => {
-    setRevisingId(null);
-    setRevisionInstructions('');
-  };
-
-  const handleGenerateRevision = async () => {
-    if (!revisingId || !revisionInstructions.trim()) {
+  const handleGenerateRevision = async (instructions: string, contentId: string) => {
+    if (!instructions.trim()) {
         setGeneralStatusMessage({ type: 'error', text: 'Please provide revision instructions.' });
         return;
     }
@@ -589,9 +581,9 @@ export default function ContentCreationForm() {
     setIsRevising(true);
     setGeneralStatusMessage({ type: 'info', text: 'Generating revision...' });
 
-    const originalContent = revisingId === 'main' 
+    const originalContent = contentId === 'main' 
         ? editableContent 
-        : editedSegmentedContent[revisingId];
+        : editedSegmentedContent[contentId];
 
     try {
         const response = await fetch('/api/revise-content', {
@@ -599,7 +591,7 @@ export default function ContentCreationForm() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 originalContent,
-                revisionInstructions,
+                revisionInstructions: instructions,
             }),
         });
 
@@ -608,17 +600,17 @@ export default function ContentCreationForm() {
             throw new Error(result.message || 'Failed to generate revision.');
         }
 
-        if (revisingId === 'main') {
+        if (contentId === 'main') {
             setEditableContent(result.revisedContent);
             setGeneratedData(prev => prev ? { ...prev, generatedText: result.revisedContent } : { generatedText: result.revisedContent });
         } else {
             setEditedSegmentedContent(prev => ({
                 ...prev,
-                [revisingId]: result.revisedContent,
+                [contentId]: result.revisedContent,
             }));
         }
         setGeneralStatusMessage({ type: 'success', text: 'Content revised successfully!' });
-        handleCancelRevision();
+        setRevisingId(null);
 
     } catch (error) {
         const message = error instanceof Error ? error.message : 'An unknown error occurred.';
@@ -851,36 +843,51 @@ export default function ContentCreationForm() {
     </label>
   );
 
-  // Reusable component for the revision UI
-  const RevisionBox = ({ contentId }: { contentId: string }) => (
-    <div className="mt-3 p-4 border border-dashed border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-gray-800 rounded-md space-y-3">
-        <label htmlFor={`revision-instructions-${contentId}`} className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-            Revision Instructions
-        </label>
-        <textarea
-            id={`revision-instructions-${contentId}`}
-            rows={3}
-            value={revisionInstructions}
-            onChange={(e) => setRevisionInstructions(e.target.value)}
-            className="block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-            placeholder="e.g., 'Make it more concise', 'Add a call to action to visit our website', 'Change the tone to be more formal'"
-        />
-        <div className="flex justify-end space-x-3">
-            <button type="button" onClick={handleCancelRevision} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-50 dark:hover:bg-gray-500">
-                Cancel
-            </button>
-            <button
-                type="button"
-                onClick={handleGenerateRevision}
-                disabled={isRevising}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-sm disabled:opacity-60"
-            >
-                {isRevising ? <Loader2 className="mr-2 h-4 w-4 animate-spin inline" /> : null}
-                {isRevising ? 'Revising...' : 'Generate Revision'}
-            </button>
+  const RevisionBox = ({ 
+    contentId, 
+    onCancel, 
+    onGenerateRevision 
+  }: { 
+    contentId: string, 
+    onCancel: () => void,
+    onGenerateRevision: (instructions: string) => void
+  }) => {
+    const [instructions, setInstructions] = useState('');
+
+    const handleSubmit = () => {
+        onGenerateRevision(instructions);
+    };
+
+    return (
+        <div className="mt-3 p-4 border border-dashed border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-gray-800 rounded-md space-y-3">
+            <label htmlFor={`revision-instructions-${contentId}`} className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Revision Instructions
+            </label>
+            <textarea
+                id={`revision-instructions-${contentId}`}
+                rows={3}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                className="block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+                placeholder="e.g., 'Make it more concise', 'Add a call to action to visit our website', 'Change the tone to be more formal'"
+            />
+            <div className="flex justify-end space-x-3">
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-md hover:bg-gray-50 dark:hover:bg-gray-500">
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isRevising}
+                    className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md shadow-sm disabled:opacity-60"
+                >
+                    {isRevising ? <Loader2 className="mr-2 h-4 w-4 animate-spin inline" /> : null}
+                    {isRevising ? 'Revising...' : 'Generate Revision'}
+                </button>
+            </div>
         </div>
-    </div>
-  );
+      );
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 md:p-8 shadow-xl rounded-lg">
@@ -1240,7 +1247,7 @@ export default function ContentCreationForm() {
                 <button onClick={() => alert("Export to be implemented.")} className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center" title="Export content"><Download size={14} className="mr-1.5" />Export</button>
               </div>
             </div>
-            {revisingId === 'main' && <RevisionBox contentId="main" />}
+            {revisingId === 'main' && <RevisionBox contentId="main" onCancel={handleCancelRevision} onGenerateRevision={(instructions) => handleGenerateRevision(instructions, 'main')} />}
             <RichTextEditor
               initialContent={editableContent}
               onChange={setEditableContent}
@@ -1273,7 +1280,7 @@ export default function ContentCreationForm() {
                     </div>
                   </div>
                   {variation.justification && <p className="text-xs italic text-gray-500 dark:text-gray-400 mb-2">Justification: {variation.justification}</p>}
-                  {revisingId === variation.segmentTag && <RevisionBox contentId={variation.segmentTag} />}
+                  {revisingId === variation.segmentTag && <RevisionBox contentId={variation.segmentTag} onCancel={handleCancelRevision} onGenerateRevision={(instructions) => handleGenerateRevision(instructions, variation.segmentTag)} />}
                   <RichTextEditor initialContent={editedSegmentedContent[variation.segmentTag] || variation.generatedText} onChange={(newContent) => handleSegmentedContentChange(variation.segmentTag, newContent)} editable={true} />
                 </div>
               ))}
