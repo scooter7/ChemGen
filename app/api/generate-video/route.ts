@@ -21,7 +21,7 @@ declare module 'next-auth' {
 
 // Initialize Replicate with the API token
 const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
+  auth: process.env.REPLICATE_API_TOKEN!,
 });
 
 // Supabase admin client for uploading the final video
@@ -30,12 +30,15 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
-// THIS IS THE CORRECTED LINE: The latest, correct model version hash on Replicate.
-const STABLE_VIDEO_DIFFUSION_MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172638";
+// ← Only this line changed: read model slug (and version hash) from env
+const VIDEO_MODEL = process.env.REPLICATE_VIDEO_MODEL!;
 
 export async function POST(req: NextRequest) {
   if (!process.env.REPLICATE_API_TOKEN) {
-    return NextResponse.json({ error: 'Replicate API token is not configured.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Replicate API token is not configured.' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -44,70 +47,72 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json() as VideoRequest;
-    const { imageUrl } = body;
-
+    const { imageUrl } = (await req.json()) as VideoRequest;
     if (!imageUrl) {
-      return NextResponse.json({ error: 'Image URL is required.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Image URL is required.' },
+        { status: 400 }
+      );
     }
 
-    // 1. Run the prediction on Replicate
-    const output = await replicate.run(
-      STABLE_VIDEO_DIFFUSION_MODEL,
-      {
-        input: {
-          input_image: imageUrl,
-          decoding_t: 7, // Motion strength
-          video_length: '25_frames_with_svd_xt', // Output length
-          sizing_strategy: 'maintain_aspect_ratio',
-          motion_bucket_id: 127,
-          frames_per_second: 6
-        }
-      }
-    );
-    
+    // 1. Run the prediction on Replicate using Google VEO-3
+    const output = await replicate.run(VIDEO_MODEL, {
+      input: {
+        input_image: imageUrl,
+        decoding_t: 7,                       // Motion strength
+        video_length: '25_frames_with_svd_xt',
+        sizing_strategy: 'maintain_aspect_ratio',
+        motion_bucket_id: 127,
+        frames_per_second: 6,
+      },
+    });
+
     const generatedVideoUrl = output as unknown as string;
-
     if (!generatedVideoUrl) {
-        throw new Error("Video generation failed: Replicate did not return a video URL.");
+      throw new Error(
+        'Video generation failed: Replicate did not return a video URL.'
+      );
     }
-    
-    // 2. Fetch the generated video to store it ourselves
+
+    // 2. Fetch the video bytes
     const videoResponse = await fetch(generatedVideoUrl);
     if (!videoResponse.ok) {
-        throw new Error(`Failed to fetch generated video from Replicate: ${videoResponse.statusText}`);
+      throw new Error(
+        `Failed to fetch generated video: ${videoResponse.statusText}`
+      );
     }
     const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
 
-    // 3. Upload the new video to our own Supabase Storage
+    // 3. Upload to Supabase Storage
     const videoId = nanoid();
     const filePathInBucket = `videos/${session.user.id}/${videoId}.mp4`;
-
     const { error: uploadError } = await supabaseAdmin.storage
       .from(VIDEO_BUCKET)
       .upload(filePathInBucket, videoBuffer, {
         contentType: 'video/mp4',
         upsert: false,
       });
-
     if (uploadError) {
-        throw new Error(`Failed to upload video to Supabase: ${uploadError.message}`);
+      throw new Error(`Supabase upload failed: ${uploadError.message}`);
     }
 
-    // 4. Get the public URL for our copy of the video
-    const { data: publicUrlData } = supabaseAdmin.storage.from(VIDEO_BUCKET).getPublicUrl(filePathInBucket);
-    
+    // 4. Make it public and return the URL
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from(VIDEO_BUCKET)
+      .getPublicUrl(filePathInBucket);
+
     return NextResponse.json(
-      { 
+      {
         message: 'Video generated successfully!',
-        videoUrl: publicUrlData.publicUrl
+        videoUrl: publicUrlData.publicUrl,
       },
       { status: 200 }
     );
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in video generation route:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'An unknown error occurred.' },
+      { status: 500 }
+    );
   }
 }
