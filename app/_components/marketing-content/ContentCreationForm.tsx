@@ -31,7 +31,7 @@ import {
   UploadCloud,
   Layers,
   Save,
-  LucideProps, // Import LucideProps
+  LucideProps,
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -177,6 +177,7 @@ export default function ContentCreationForm() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSavingHistory, setIsSavingHistory] = useState(false);
+  const [savingSegmentTag, setSavingSegmentTag] = useState<string | null>(null);
   const [generatedData, setGeneratedData] =
     useState<GeneratedData | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -493,7 +494,7 @@ export default function ContentCreationForm() {
       setIsLoading(false);
     }
   };
-
+  
   const handleSaveToHistory = async () => {
     if (!generatedData) {
         setGeneralStatusMessage({ type: 'error', text: 'No content to save.' });
@@ -527,6 +528,42 @@ export default function ContentCreationForm() {
         setTimeout(() => setGeneralStatusMessage(null), 4000);
     }
   };
+
+  const handleSaveSegmentToHistory = async (variation: SegmentedVariation) => {
+    const contentToSave = editedSegmentedContent[variation.segmentTag] || variation.generatedText;
+    if (!contentToSave) {
+        setGeneralStatusMessage({ type: 'error', text: 'No content to save for this segment.' });
+        return;
+    }
+    setSavingSegmentTag(variation.segmentTag);
+    setGeneralStatusMessage({ type: 'info', text: `Saving "${variation.segmentTag}" segment...` });
+
+    try {
+        const response = await fetch('/api/content-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                promptText: `${formData.prompt} (Segment: ${variation.segmentTag})`,
+                audience: formData.audience,
+                mediaType: formData.mediaType,
+                generatedBodyHtml: contentToSave,
+                justification: variation.justification,
+            }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to save segment to history.');
+        }
+        setGeneralStatusMessage({ type: 'success', text: `Segment "${variation.segmentTag}" saved to history!` });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+        setGeneralStatusMessage({ type: 'error', text: `Save failed: ${message}` });
+    } finally {
+        setSavingSegmentTag(null);
+        setTimeout(() => setGeneralStatusMessage(null), 4000);
+    }
+  };
+
 
   const handleFetchImageRecommendations = async () => {
     if (!editableContent && !generatedData?.generatedText) {
@@ -1232,6 +1269,38 @@ export default function ContentCreationForm() {
                     <h5 className="font-semibold text-indigo-600 dark:text-indigo-400">
                       {variation.segmentTag} Version
                     </h5>
+                    <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleSaveSegmentToHistory(variation)}
+                          disabled={savingSegmentTag === variation.segmentTag}
+                          className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 rounded-md flex items-center disabled:opacity-50"
+                          title="Save segment to history"
+                        >
+                          {savingSegmentTag === variation.segmentTag ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Save size={14} className="mr-1.5" />}
+                          {savingSegmentTag === variation.segmentTag ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            const contentToCopy = editedSegmentedContent[variation.segmentTag] || variation.generatedText;
+                            navigator.clipboard.writeText(contentToCopy)
+                              .then(() => setGeneralStatusMessage({ type: 'success', text: `Segment "${variation.segmentTag}" copied!` }))
+                              .catch(err => console.error("Copy failed: ", err));
+                          }}
+                          className="px-3 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/50 hover:bg-indigo-200 dark:hover:bg-indigo-900 rounded-md flex items-center"
+                          title="Copy segment text"
+                        >
+                          <Copy size={14} className="mr-1.5" />
+                          Copy
+                        </button>
+                        <button
+                          onClick={() => alert("Export to be implemented.")}
+                          className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center"
+                          title="Export segment"
+                        >
+                          <Download size={14} className="mr-1.5" />
+                          Export
+                        </button>
+                      </div>
                   </div>
                   {variation.justification && (
                     <p className="text-xs italic text-gray-500 dark:text-gray-400 mb-2">
