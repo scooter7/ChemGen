@@ -572,6 +572,10 @@ export default function ContentCreationForm() {
     setRevisingId(id);
   };
 
+  const handleCancelRevision = () => {
+    setRevisingId(null);
+  };
+
   const handleGenerateRevision = async (instructions: string, contentId: string) => {
     if (!instructions.trim()) {
         setGeneralStatusMessage({ type: 'error', text: 'Please provide revision instructions.' });
@@ -850,12 +854,12 @@ export default function ContentCreationForm() {
   }: { 
     contentId: string, 
     onCancel: () => void,
-    onGenerateRevision: (instructions: string) => void
+    onGenerateRevision: (instructions: string, contentId: string) => void
   }) => {
     const [instructions, setInstructions] = useState('');
 
     const handleSubmit = () => {
-        onGenerateRevision(instructions);
+        onGenerateRevision(instructions, contentId);
     };
 
     return (
@@ -1247,7 +1251,7 @@ export default function ContentCreationForm() {
                 <button onClick={() => alert("Export to be implemented.")} className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md flex items-center" title="Export content"><Download size={14} className="mr-1.5" />Export</button>
               </div>
             </div>
-            {revisingId === 'main' && <RevisionBox contentId="main" onCancel={handleCancelRevision} onGenerateRevision={(instructions) => handleGenerateRevision(instructions, 'main')} />}
+            {revisingId === 'main' && <RevisionBox contentId="main" onCancel={handleCancelRevision} onGenerateRevision={handleGenerateRevision} />}
             <RichTextEditor
               initialContent={editableContent}
               onChange={setEditableContent}
@@ -1280,7 +1284,7 @@ export default function ContentCreationForm() {
                     </div>
                   </div>
                   {variation.justification && <p className="text-xs italic text-gray-500 dark:text-gray-400 mb-2">Justification: {variation.justification}</p>}
-                  {revisingId === variation.segmentTag && <RevisionBox contentId={variation.segmentTag} onCancel={handleCancelRevision} onGenerateRevision={(instructions) => handleGenerateRevision(instructions, variation.segmentTag)} />}
+                  {revisingId === variation.segmentTag && <RevisionBox contentId={variation.segmentTag} onCancel={handleCancelRevision} onGenerateRevision={handleGenerateRevision} />}
                   <RichTextEditor initialContent={editedSegmentedContent[variation.segmentTag] || variation.generatedText} onChange={(newContent) => handleSegmentedContentChange(variation.segmentTag, newContent)} editable={true} />
                 </div>
               ))}
