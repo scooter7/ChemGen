@@ -21,7 +21,7 @@ const VIDEO_BUCKET = 'generated-videos';
 
 export async function POST(req: NextRequest) {
   if (!HF_TOKEN) {
-    return NextResponse.json({ error: 'Hugging Face API token is not configured.' }, { status: 500 });
+    return NextResponse.json({ error: 'Hugging Face API token is not configured on the server.' }, { status: 500 });
   }
 
   try {
@@ -37,14 +37,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Image URL is required.' }, { status: 400 });
     }
 
-    // 1. Fetch the user-selected image from its public URL
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch image from URL: ${imageUrl}`);
+        throw new Error(`Failed to fetch the provided image from its URL.`);
     }
     const imageBlob = await imageResponse.blob();
 
-    // 2. Call the Hugging Face Inference API
     const hfResponse = await fetch(HUGGING_FACE_API_URL, {
         headers: { Authorization: `Bearer ${HF_TOKEN}` },
         method: "POST",
@@ -52,16 +50,21 @@ export async function POST(req: NextRequest) {
     });
 
     if (!hfResponse.ok) {
+        // Provide more specific error messages for common Hugging Face issues
+        if (hfResponse.status === 404) {
+            throw new Error("The video generation model was not found. It might be offline or has been moved.");
+        }
+        if (hfResponse.status === 503) {
+            throw new Error("The video generation model is currently loading. Please wait a minute and try again.");
+        }
         const errorText = await hfResponse.text();
         console.error("Hugging Face API Error:", errorText);
-        throw new Error(`Hugging Face API failed: ${errorText}`);
+        throw new Error(`The video generation service failed with status ${hfResponse.status}: ${errorText}`);
     }
 
-    // 3. Get the generated video as a blob
     const videoBlob = await hfResponse.blob();
     const videoBuffer = Buffer.from(await videoBlob.arrayBuffer());
 
-    // 4. Upload the new video to Supabase Storage
     const videoId = nanoid();
     const filePathInBucket = `videos/${session.user.id}/${videoId}.mp4`;
 
@@ -73,10 +76,9 @@ export async function POST(req: NextRequest) {
       });
 
     if (uploadError) {
-        throw new Error(`Failed to upload video to Supabase: ${uploadError.message}`);
+        throw new Error(`Failed to upload generated video to storage: ${uploadError.message}`);
     }
 
-    // 5. Get the public URL for the newly uploaded video
     const { data: publicUrlData } = supabaseAdmin.storage.from(VIDEO_BUCKET).getPublicUrl(filePathInBucket);
     
     return NextResponse.json(
