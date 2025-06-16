@@ -8,18 +8,19 @@ import {
   History,
   FileText,
   UserCircle2,
-  Image as ImageIconLucide // Renamed to avoid conflict if 'Image' is used elsewhere
+  Image as ImageIconLucide,
+  Video, // Import the Video icon
 } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/history', label: 'History', icon: History },
   { href: '/brand-materials', label: 'Brand Materials', icon: FileText },
-  { href: '/image-library', label: 'Image Library', icon: ImageIconLucide }, // <<< NEW LINK
+  { href: '/image-library', label: 'Image Library', icon: ImageIconLucide },
+  { href: '/video-generator', label: 'Video Generator', icon: Video }, // New video generator link
   { href: '/profile', label: 'My Profile', icon: UserCircle2 },
 ];
 
-// ... rest of the Sidebar component remains the same
 export default function Sidebar() {
   const pathname = usePathname();
 
