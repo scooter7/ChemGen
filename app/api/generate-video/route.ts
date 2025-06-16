@@ -1,40 +1,57 @@
 // app/api/generate-video/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession, type DefaultSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
+import { createClient } from '@supabase/supabase-js';
+import { nanoid } from 'nanoid';
 import Replicate from 'replicate';
 
-export const runtime = 'nodejs';            // ensure it runs on Node
-export const revalidate = 0;                // dynamic, no caching
+export const runtime = 'nodejs';
+export const revalidate = 0;
 
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN!,
-});
+interface CreateRequest {
+  prompt: string;
+}
 
-// Narrow the env var’s type to satisfy Replicate’s signature
-const MODEL_VERSION = process.env
+declare module 'next-auth' {
+  interface Session {
+    user: { id: string } & DefaultSession['user'];
+  }
+}
+
+const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
+const MODEL = process.env
   .REPLICATE_VIDEO_MODEL! as `${string}/${string}` | `${string}/${string}:${string}`;
 
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+const VIDEO_BUCKET = 'generated-videos';
+
 export async function POST(req: NextRequest) {
-  try {
-    const { prompt } = (await req.json()) as { prompt?: string };
-    if (!prompt) {
-      return NextResponse.json(
-        { error: 'Missing `prompt` in request body' },
-        { status: 400 }
-      );
-    }
+  // 1️⃣ Auth check
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
-    // 1️⃣ Create the prediction asynchronously
-    const prediction = await replicate.predictions.create({
-      version: MODEL_VERSION,
-      input: { prompt },
-      // optional: webhook: process.env.REPLICATE_WEBHOOK_URL
-    });
-
-    // 2️⃣ Return the ID immediately
+  // 2️⃣ Validate prompt
+  const { prompt } = (await req.json()) as CreateRequest;
+  if (!prompt || typeof prompt !== 'string') {
     return NextResponse.json(
-      { id: prediction.id },
-      { status: 201 }
+      { error: 'Missing or invalid `prompt` in body' },
+      { status: 400 }
     );
+  }
+
+  // 3️⃣ Kick off the async job
+  try {
+    const prediction = await replicate.predictions.create({
+      version: MODEL,
+      input: { prompt },
+    });
+    return NextResponse.json({ id: prediction.id }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('POST /api/generate-video error:', err);
@@ -43,24 +60,54 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  // 1️⃣ Auth check (optional but recommended)
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // 2️⃣ Read the prediction ID
+  const id = req.nextUrl.searchParams.get('id');
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Missing `id` query parameter' },
+      { status: 400 }
+    );
+  }
+
   try {
-    const id = req.nextUrl.searchParams.get('id');
-    if (!id) {
+    // 3️⃣ Check Replicate status
+    const pred = await replicate.predictions.get(id);
+
+    if (pred.status !== 'succeeded') {
+      // Still processing (or errored)—just forward status & error
       return NextResponse.json(
-        { error: 'Missing `id` query parameter' },
-        { status: 400 }
+        { status: pred.status, error: pred.error ?? null },
+        { status: 200 }
       );
     }
 
-    // Fetch the prediction status
-    const prediction = await replicate.predictions.get(id);
+    // 4️⃣ When succeeded: download the file, upload to Supabase
+    const videoUrl = pred.output as string;
+    const resp = await fetch(videoUrl);
+    if (!resp.ok) throw new Error(`Fetch failed: ${resp.statusText}`);
+    const buffer = Buffer.from(await resp.arrayBuffer());
 
+    const videoId = nanoid();
+    const path = `videos/${session.user.id}/${videoId}.mp4`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(VIDEO_BUCKET)
+      .upload(path, buffer, { contentType: 'video/mp4' });
+    if (uploadError) throw uploadError;
+
+    const { data } = supabaseAdmin.storage
+      .from(VIDEO_BUCKET)
+      .getPublicUrl(path);
+
+    // 5️⃣ Return final URL
     return NextResponse.json(
-      {
-        status: prediction.status,
-        output: prediction.output,  // once status==='succeeded' this is your URL
-        error: prediction.error,
-      },
+      { status: 'succeeded', videoUrl: data.publicUrl },
       { status: 200 }
     );
   } catch (err: unknown) {
