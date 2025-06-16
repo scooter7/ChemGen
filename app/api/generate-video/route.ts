@@ -30,7 +30,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 const VIDEO_BUCKET = 'generated-videos';
 
-// ← Only this line changed: read model slug (and version hash) from env
+// Read the model slug (and version hash) from env
 const VIDEO_MODEL = process.env.REPLICATE_VIDEO_MODEL!;
 
 export async function POST(req: NextRequest) {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Run the prediction on Replicate using Google VEO-3
+    // 1. Run the prediction on Replicate using your chosen model
     const output = await replicate.run(VIDEO_MODEL, {
       input: {
         input_image: imageUrl,
@@ -108,10 +108,13 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Narrow the error type so we don’t use `any`
+    const message =
+      error instanceof Error ? error.message : String(error);
     console.error('Error in video generation route:', error);
     return NextResponse.json(
-      { error: error.message || 'An unknown error occurred.' },
+      { error: message },
       { status: 500 }
     );
   }
