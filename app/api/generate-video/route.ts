@@ -13,6 +13,35 @@ interface GradioFile {
   meta: { _type: 'gradio.FileData' };
 }
 
+/**
+ * A more robust function to find a video URL within a complex object.
+ * This will look for a string that ends with a video file extension.
+ */
+function findVideoUrl(data: unknown): string | null {
+    if (typeof data === 'string' && data.match(/\.(mp4|webm|mov|avi)$/)) {
+        return data;
+    }
+
+    if (Array.isArray(data)) {
+        for (const item of data) {
+            const url = findVideoUrl(item);
+            if (url) return url;
+        }
+    }
+
+    if (typeof data === 'object' && data !== null) {
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const url = findVideoUrl((data as Record<string, unknown>)[key]);
+                if (url) return url;
+            }
+        }
+    }
+
+    return null;
+}
+
+
 export async function POST(req: NextRequest) {
   if (!HF_SPACE_API_URL) {
     console.error("VIDEO_GENERATION_API_URL is not set.");
@@ -128,29 +157,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 8️⃣ Extract video URL/path
-    if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
-      console.error('Unexpected parsed result structure:', parsed);
+    // ✨ NEW: Log the entire parsed response for debugging
+    console.log('Full response from video service:', JSON.stringify(parsed, null, 2));
+
+    // 8️⃣ Extract video URL/path using the more robust function
+    const videoUrl = findVideoUrl(parsed);
+
+    if (!videoUrl) {
+      // The console.log above will now show us what 'parsed' contains
       return NextResponse.json(
         { error: `The generated video could not be found in the response.` },
-        { status: 500 }
-      );
-    }
-    
-    const entry = parsed[0];
-    let videoUrl: string;
-    if (typeof entry === 'string') {
-      videoUrl = entry;
-    } else if (
-      typeof entry === 'object' &&
-      entry !== null &&
-      typeof (entry as Record<string, unknown>).video === 'string'
-    ) {
-      videoUrl = (entry as Record<string, string>).video;
-    } else {
-        console.error('Could not find video URL in response entry:', entry);
-      return NextResponse.json(
-        { error: `The response from the video service was not in the expected format.` },
         { status: 500 }
       );
     }
