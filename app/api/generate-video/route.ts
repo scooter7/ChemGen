@@ -33,8 +33,9 @@ export async function POST(req: NextRequest) {
 
     const imageDataUrl = await fileToDataURL(file);
 
-    // This JSON body is structured exactly as the /generate_video API expects.
+    // This JSON body targets the 3rd API function (index 2)
     const apiRequestBody = {
+      fn_index: 2, // Corresponds to the `/generate_video` function
       data: [
         imageDataUrl,
         prompt,
@@ -49,9 +50,8 @@ export async function POST(req: NextRequest) {
       ]
     };
 
-    // CORRECTION: The endpoint for a named function in Gradio is typically /run/{function_name}
-    // Let's try calling the named endpoint directly.
-    const response = await fetch(`${HF_SPACE_API_URL}/run/generate_video`, {
+    // The most common generic endpoint for Gradio APIs is /api/predict/
+    const response = await fetch(`${HF_SPACE_API_URL}/api/predict/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(apiRequestBody),
