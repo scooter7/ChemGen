@@ -5,7 +5,6 @@ import React, { useState, useEffect, FormEvent } from 'react';
 import { Video, Film, Loader2, AlertCircle, Image as ImageIconLucide, CheckCircle } from 'lucide-react';
 import NextImage from 'next/image';
 
-// Interfaces for data structures
 interface VideoFormState {
   prompt: string;
   selectedImageUrl: string | null;
@@ -22,6 +21,7 @@ export default function VideoGeneratorPage() {
     prompt: '',
     selectedImageUrl: null,
   });
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -45,24 +45,31 @@ export default function VideoGeneratorPage() {
     fetchImageLibrary();
   }, []);
 
-  const handleInputChange = (
-    event: React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
+  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const { name, value } = event.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
+  
+  const handleImageSelectAndFetch = async (image: ImageResource) => {
+    if (!image.publicUrl) return;
+    
+    setFormData(prev => ({ ...prev, selectedImageUrl: image.publicUrl! }));
+    setSelectedImageFile(null);
 
-  const handleImageSelect = (imageUrl: string) => {
-    setFormData(prev => ({ ...prev, selectedImageUrl: imageUrl }));
+    try {
+      const response = await fetch(image.publicUrl);
+      const blob = await response.blob();
+      const file = new File([blob], image.fileName, { type: blob.type });
+      setSelectedImageFile(file);
+    } catch (e) {
+      setError("Could not retrieve the selected image file. Please try another.");
+    }
   };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!formData.selectedImageUrl) {
-      setError('Please select an image from your library to generate the video.');
+    if (!selectedImageFile) {
+      setError('Please select an image from your library.');
       return;
     }
 
@@ -71,18 +78,18 @@ export default function VideoGeneratorPage() {
     setGeneratedVideoUrl(null);
 
     try {
+      const formDataToSubmit = new FormData();
+      formDataToSubmit.append('file', selectedImageFile);
+      formDataToSubmit.append('prompt', formData.prompt);
+
       const response = await fetch('/api/generate-video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageUrl: formData.selectedImageUrl,
-          prompt: formData.prompt, 
-        }),
+        body: formDataToSubmit,
       });
 
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to start video generation.');
+        throw new Error(result.error || 'Failed to generate video.');
       }
       
       setGeneratedVideoUrl(result.videoUrl);
@@ -102,11 +109,10 @@ export default function VideoGeneratorPage() {
           Image-to-Video Generator
         </h1>
         <p className="text-gray-600 dark:text-gray-300 mb-6">
-          Select an image from your library to generate a short, animated video clip.
+          Select an image from your library and provide a motion prompt to generate a short video clip.
         </p>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
                 <ImageIconLucide className="mr-2 h-5 w-5" />
@@ -121,7 +127,7 @@ export default function VideoGeneratorPage() {
                     {images.map(image => (
                         <div 
                             key={image.id}
-                            onClick={() => handleImageSelect(image.publicUrl!)}
+                            onClick={() => handleImageSelectAndFetch(image)}
                             className={`relative aspect-square rounded-md overflow-hidden cursor-pointer transition-all duration-200 ${formData.selectedImageUrl === image.publicUrl ? 'ring-4 ring-offset-2 ring-indigo-500' : 'hover:opacity-80'}`}
                         >
                             {image.publicUrl && (
@@ -142,18 +148,19 @@ export default function VideoGeneratorPage() {
             <div>
               <label htmlFor="prompt" className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 <Film size={16} className="mr-2" />
-                Motion Prompt (Optional)
+                2. Motion Prompt
               </label>
               <textarea
                 id="prompt" name="prompt" rows={4}
                 value={formData.prompt} onChange={handleInputChange}
                 className="mt-1 block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-                placeholder="e.g., 'camera pans left', 'subtle zoom in', 'wind blowing through the trees'. Note: This is for future models; current model uses default motion."
+                placeholder="e.g., 'camera pans left', 'subtle zoom in', 'wind blowing through the trees'"
+                required
               />
             </div>
             
             <div className="flex justify-end pt-2">
-              <button type="submit" disabled={isLoading || !formData.selectedImageUrl} className="px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 flex items-center justify-center">
+              <button type="submit" disabled={isLoading || !selectedImageFile} className="px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 flex items-center justify-center">
                 {isLoading ? (<><Loader2 className="mr-2 h-5 w-5 animate-spin" />Generating Video...</>) : ('Generate Video')}
               </button>
             </div>
