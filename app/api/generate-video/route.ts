@@ -3,28 +3,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
-import { createClient } from '@supabase/supabase-js';
-import { nanoid } from 'nanoid';
+import Replicate from 'replicate';
 import { Buffer } from 'buffer';
 
-// Initialize clients
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-const supabaseAdmin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-const VIDEO_BUCKET_NAME = 'generated-videos';
-
-const safetySettings = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-];
+// Initialize the Replicate client
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN!,
+});
 
 export async function POST(req: NextRequest) {
-  if (!process.env.GOOGLE_API_KEY || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("One or more environment variables are not set.");
+  if (!process.env.REPLICATE_API_TOKEN || !process.env.REPLICATE_VIDEO_MODEL) {
+    console.error("Replicate environment variables are not set.");
     return NextResponse.json(
-      { error: 'Server is not configured correctly.' },
+      { error: 'Video generation service is not configured.' },
       { status: 500 }
     );
   }
@@ -33,11 +24,11 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const userId = session.user.id;
 
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
   const prompt = formData.get('prompt') as string | null;
+  
   if (!file || !prompt) {
     return NextResponse.json(
       { error: 'Both an image file and a prompt are required.' },
@@ -46,74 +37,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Convert the image file to a base64 string
     const imageBuffer = Buffer.from(await file.arrayBuffer());
-    const base64Image = imageBuffer.toString('base64');
-    
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
-    
-    const result = await model.generateContent([
-        `Animate this image based on the following prompt: "${prompt}"`,
-        {
-            inlineData: {
-                data: base64Image,
-                mimeType: file.type,
-            }
+    const base64Image = `data:${file.type};base64,${imageBuffer.toString('base64')}`;
+
+    // Call the Replicate API
+    const output = await replicate.run(
+      process.env.REPLICATE_VIDEO_MODEL as `${string}/${string}:${string}`,
+      {
+        input: {
+          image: base64Image,
+          prompt: prompt,
+          // You can add other parameters here based on the model's documentation on Replicate
         }
-    ]);
+      }
+    );
+    
+    // The output from Replicate should be the URL of the generated video
+    const videoUrl = Array.isArray(output) ? output[0] : output;
 
-    const response = result.response;
-    // The video data is in the `parts` array of the first candidate's content
-    const firstPart = response.candidates?.[0]?.content?.parts?.[0];
-
-    // Check if the firstPart and fileData exist
-    if (!firstPart || !('fileData' in firstPart) || !firstPart.fileData) {
-      console.error("No video data found in the Gemini API response:", JSON.stringify(response, null, 2));
+    if (!videoUrl || typeof videoUrl !== 'string') {
+      console.error("No video URL found in the Replicate API response:", output);
       return NextResponse.json(
         { error: 'The video generation service did not return a video.' },
         { status: 500 }
       );
     }
     
-    const { fileUri, mimeType } = firstPart.fileData;
-
-    // Extract the base64 video data from the file URI
-    const videoBase64 = fileUri.split(',')[1];
-    if (!videoBase64) {
-      console.error("Could not extract base64 data from file URI:", fileUri);
-      return NextResponse.json(
-        { error: 'The video service returned an invalid video format.' },
-        { status: 500 }
-      );
-    }
-    const videoBuffer = Buffer.from(videoBase64, 'base64');
-    
-    // Upload the generated video to Supabase
-    const videoFileName = `generated-video-${userId}-${nanoid()}.mp4`;
-    const { data: uploadData, error: uploadError } = await supabaseAdmin
-        .storage
-        .from(VIDEO_BUCKET_NAME)
-        .upload(videoFileName, videoBuffer, {
-            contentType: mimeType,
-            upsert: false
-        });
-
-    if (uploadError) {
-        console.error("Supabase video upload error:", uploadError);
-        throw new Error("Could not save the generated video.");
-    }
-
-    // Get the public URL for the newly uploaded video
-    const { data: publicUrlData } = supabaseAdmin.storage
-        .from(VIDEO_BUCKET_NAME)
-        .getPublicUrl(uploadData.path);
-
-    const publicVideoUrl = publicUrlData.publicUrl;
-
-    if (!publicVideoUrl) {
-      throw new Error("Could not get a public URL for the generated video.");
-    }
-
-    return NextResponse.json({ videoUrl: publicVideoUrl }, { status: 200 });
+    return NextResponse.json({ videoUrl }, { status: 200 });
 
   } catch (error) {
     console.error('An unexpected error occurred in generate-video API:', error);
