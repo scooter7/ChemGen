@@ -1,9 +1,9 @@
 // file: app/api/generate-video/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession }              from 'next-auth';
-import { authOptions }                  from '@/lib/authOptions';
-import { Buffer }                       from 'buffer';
+import { getServerSession }         from 'next-auth';
+import { authOptions }             from '@/lib/authOptions';
+import { Buffer }                  from 'buffer';
 
 const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL!;
 // e.g. "https://scooter7-wan2-1-fast.hf.space"
@@ -22,32 +22,34 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1️⃣ Auth
+    // 1) Ensure user is authenticated
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2️⃣ Parse form-data
-    const form = await req.formData();
-    const file = form.get('file') as File | null;
-    const prompt = form.get('prompt') as string | null;
+    // 2) Parse multipart form data
+    const formData = await req.formData();
+    const file     = formData.get('file')   as File | null;
+    const prompt   = formData.get('prompt') as string | null;
+
     if (!file || !prompt) {
       return NextResponse.json(
-        { error: 'Both file and prompt are required.' },
+        { error: 'Both an image file and a prompt are required.' },
         { status: 400 }
       );
     }
 
-    // 3️⃣ Build Gradio-style file dict
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const dataUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
+    // 3) Build the Gradio‐style File dict
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer      = Buffer.from(arrayBuffer);
+    const dataUrl     = `data:${file.type};base64,${buffer.toString('base64')}`;
     const gradioFile: GradioFile = {
       path: dataUrl,
       meta: { _type: 'gradio.FileData' }
     };
 
-    // 4️⃣ First POST to obtain EVENT_ID
+    // 4) INITIAL POST to /gradio_api/call/generate_video to get an EVENT_ID
     const initRes = await fetch(
       `${HF_SPACE_API_URL}/gradio_api/call/generate_video`,
       {
@@ -55,52 +57,61 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: [
-            gradioFile,
-            prompt,
-            512,
-            896,
-            "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-            2,
-            1,
-            4,
-            42,
-            true
+            gradioFile,                                       // [0] input image
+            prompt,                                           // [1] prompt
+            512,                                              // [2] height
+            896,                                              // [3] width
+            "Bright tones, overexposed, static, blurred details, ...", // [4] negative_prompt
+            2,                                                // [5] duration_seconds
+            1,                                                // [6] guidance_scale
+            4,                                                // [7] steps
+            42,                                               // [8] seed
+            true                                              // [9] randomize_seed
           ]
         })
       }
     );
     if (!initRes.ok) {
-      const errText = await initRes.text();
-      throw new Error(`Init request failed: ${errText}`);
+      const txt = await initRes.text();
+      throw new Error(`Init request failed: ${txt}`);
     }
 
-    // 5️⃣ Extract EVENT_ID from the raw response
-    const initText = await initRes.text();
-    const eventId = initText.split('"')[3];
-    if (!eventId) {
-      throw new Error('Could not parse event ID from response');
+    // 5) Parse the EVENT_ID out of the JSON response
+    const initJson = await initRes.json() as { data: string[] | string };
+    let eventId: string;
+    if (Array.isArray(initJson.data)) {
+      eventId = initJson.data[0];
+    } else if (typeof initJson.data === 'string') {
+      eventId = initJson.data;
+    } else {
+      throw new Error(`Could not parse event ID: ${JSON.stringify(initJson)}`);
     }
 
-    // 6️⃣ Poll the GET endpoint for the result
+    // 6) GET the result using the EVENT_ID
     const resultRes = await fetch(
       `${HF_SPACE_API_URL}/gradio_api/call/generate_video/${eventId}`
     );
     if (!resultRes.ok) {
-      const errText = await resultRes.text();
-      throw new Error(`Result request failed: ${errText}`);
-    }
-    const resultJson = await resultRes.json();
-
-    // 7️⃣ Extract video path
-    // resultJson is [ <video_path>, <seed> ]
-    const output = Array.isArray(resultJson) ? resultJson[0] : null;
-    if (typeof output !== 'string') {
-      console.error('Unexpected result:', resultJson);
-      throw new Error('Video not returned');
+      const txt = await resultRes.text();
+      throw new Error(`Result request failed: ${txt}`);
     }
 
-    // 8️⃣ Return to client
-    return NextResponse.json({ videoUrl: output }, { status: 200 });
+    // 7) Parse the final output
+    const resultJson = await resultRes.json() as any[];
+    const entry = resultJson[0]; 
+    // entry may be a string (filepath) or an object { video: filepath, subtitles: ... }
+    let videoUrl: string;
+    if (typeof entry === 'string') {
+      videoUrl = entry;
+    } else if (entry && typeof entry === 'object' && 'video' in entry) {
+      videoUrl = (entry as { video: string }).video;
+    } else {
+      throw new Error(`Unexpected final result: ${JSON.stringify(resultJson)}`);
+    }
+
+    // 8) Return the video URL to the client
+    return NextResponse.json({ videoUrl }, { status: 200 });
+
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
