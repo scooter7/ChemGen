@@ -6,9 +6,8 @@ import { authOptions } from '@/lib/authOptions';
 import { Buffer } from 'buffer';
 
 const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL; 
-// e.g. https://scooter7-wan2-1-fast.hf.space
+// e.g. "https://scooter7-wan2-1-fast.hf.space"
 
-// Convert the uploaded File into a base64 data URL
 async function fileToDataURL(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
@@ -24,13 +23,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // — 1) Auth check
+    // 1) Auth check
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // — 2) Parse form data
+    // 2) Parse multipart form
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const prompt = formData.get('prompt') as string | null;
@@ -41,50 +40,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // — 3) To base64 data URL
+    // 3) Convert to base64 data URL
     const imageDataUrl = await fileToDataURL(file);
 
-    // — 4) Build the Gradio /api/predict payload (fn_index = 2 → /generate_video)
-    const apiRequestBody = {
-      fn_index: 2,
-      data: [
-        /* input_image */       imageDataUrl,
-        /* prompt */            prompt,
-        /* height */            512,
-        /* width */             896,
-        /* negative_prompt */   "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-        /* duration_seconds */  2,
-        /* guidance_scale */    1,
-        /* steps */             4,
-        /* seed */              42,
-        /* randomize_seed */    true
-      ]
+    // 4) Build the JSON payload for the named /generate_video endpoint
+    const payload = {
+      input_image: { url: imageDataUrl },
+      prompt: prompt,
+      height: 512,
+      width: 896,
+      negative_prompt: "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
+      duration_seconds: 2,
+      guidance_scale: 1,
+      steps: 4,
+      seed: 42,
+      randomize_seed: true
     };
 
-    // — 5) POST to /api/predict
+    // 5) POST to the REST endpoint /api/generate_video
     const response = await fetch(
-      `${HF_SPACE_API_URL}/api/predict`,
+      `${HF_SPACE_API_URL}/api/generate_video`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(apiRequestBody),
+        body: JSON.stringify(payload),
       }
     );
+
     if (!response.ok) {
       const text = await response.text();
       throw new Error(`Video API call failed: ${text}`);
     }
 
-    // — 6) Parse the JSON and extract the video path
+    // 6) Parse the JSON result
     const result = await response.json();
-    // result.data: [ { video: "<filepath>", subtitles: "<filepath>|null" }, <seed> ]
+    // Gradio returns: { data: [ { video: "filepath", subtitles: null | "path" }, <seed> ] }
     const entry = result.data?.[0];
     if (!entry?.video) {
       console.error('Unexpected API response:', result);
       throw new Error('No video returned from API.');
     }
 
-    // — 7) Return the video URL/filepath
+    // 7) Return the video URL/path
     return NextResponse.json(
       { videoUrl: entry.video },
       { status: 200 }
