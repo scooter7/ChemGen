@@ -5,106 +5,110 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { Buffer } from 'buffer';
 
-const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL;
-// e.g. "https://scooter7-wan2-1-fast.hf.space"
+const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL!;
+// = "https://scooter7-wan2-1-fast.hf.space"
 
 interface ImageInputDict {
-  url: string;
+  url:       string;
   mime_type: string;
   orig_name: string;
-  size: number;
+  size:      number;
   is_stream: boolean;
-  meta: Record<string, unknown>;
+  meta:      Record<string, unknown>;
 }
 
-// Turn an uploaded File into what gradio_client.handle_file() would produce:
+// Build the same dict that gradio_client.handle_file() would produce
 async function fileToInputDict(file: File): Promise<ImageInputDict> {
   const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const buffer      = Buffer.from(arrayBuffer);
   return {
-    url: `data:${file.type};base64,${buffer.toString('base64')}`,
-    mime_type: file.type,
-    orig_name: file.name,
-    size: buffer.length,
-    is_stream: false,
-    meta: {},
+    url:        `data:${file.type};base64,${buffer.toString('base64')}`,
+    mime_type:  file.type,
+    orig_name:  file.name,
+    size:       buffer.length,
+    is_stream:  false,
+    meta:       {},
   };
 }
 
 export async function POST(req: NextRequest) {
+  // 1️⃣ Configuration check
   if (!HF_SPACE_API_URL) {
     return NextResponse.json(
-      { error: 'Video generation service is not configured.' },
+      { error: 'VIDEO_GENERATION_API_URL is not set.' },
       { status: 500 }
     );
   }
 
   try {
-    // 1) Auth check
+    // 2️⃣ Authentication
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2) Parse multipart form
+    // 3️⃣ Parse incoming form-data
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    const prompt = formData.get('prompt') as string | null;
+    const file     = formData.get('file')   as File | null;
+    const prompt   = formData.get('prompt') as string | null;
+
     if (!file || !prompt) {
       return NextResponse.json(
-        { error: 'An image file and a prompt are required.' },
+        { error: 'Both an image file and a prompt are required.' },
         { status: 400 }
       );
     }
 
-    // 3) Build the input_image dict
+    // 4️⃣ Convert file → Gradio-style input dict
     const inputImage = await fileToInputDict(file);
 
-    // 4) Construct the Gradio payload
+    // 5️⃣ Prepare Gradio payload for /call/generate_video
     const payload = {
       data: [
-        inputImage,
-        prompt,
-        512,
-        896,
-        "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-        2,
-        1,
-        4,
-        42,
-        true
+        inputImage,                           // input_image
+        prompt,                               // prompt
+        512,                                  // height
+        896,                                  // width
+        "Bright tones, overexposed, ...",     // negative_prompt
+        2,                                    // duration_seconds
+        1,                                    // guidance_scale
+        4,                                    // steps
+        42,                                   // seed
+        true                                  // randomize_seed
       ]
     };
 
-    // 5) Call the named /generate_video endpoint
+    // 6️⃣ Call the public Space’s named endpoint
     const res = await fetch(
       `${HF_SPACE_API_URL}/call/generate_video`,
       {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body:    JSON.stringify(payload),
       }
     );
 
     if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Video API call failed: ${errText}`);
+      const text = await res.text();
+      throw new Error(`Video API call failed: ${text}`);
     }
 
-    // 6) Parse the result
+    // 7️⃣ Extract the generated video path
     const json = await res.json();
-    // json.data: [ { video: "<filepath>", subtitles: "<filepath>|null" }, <seed> ]
     const entry = Array.isArray(json.data) ? json.data[0] : null;
     if (!entry?.video) {
       console.error('Unexpected API response:', json);
       throw new Error('No video returned from API.');
     }
 
-    // 7) Return the video path/URL
-    return NextResponse.json({ videoUrl: entry.video }, { status: 200 });
+    // 8️⃣ Return to client
+    return NextResponse.json(
+      { videoUrl: entry.video },
+      { status: 200 }
+    );
 
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
