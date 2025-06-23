@@ -10,10 +10,14 @@ import { Buffer } from 'buffer';
 const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL!;
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const VIDEO_BUCKET_NAME = 'generated-videos'; // Using your existing bucket
+const VIDEO_BUCKET_NAME = 'generated-videos';
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+interface GradioFile {
+  url: string; // Sending a URL instead of a path/data URL
+  meta: { _type: 'gradio.FileData' };
+}
 
 export async function POST(req: NextRequest) {
   if (!HF_SPACE_API_URL || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -24,14 +28,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 1️⃣ Auth check
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const userId = session.user.id;
 
-  // 2️⃣ Parse form data
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
   const prompt = formData.get('prompt') as string | null;
@@ -43,7 +45,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 3️⃣ NEW: Upload image to Supabase to get a public URL
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const uniqueFileName = `${userId}-${nanoid()}.png`;
 
@@ -70,19 +71,28 @@ export async function POST(req: NextRequest) {
         throw new Error("Could not get public URL for the uploaded image.");
     }
 
-    // 4️⃣ Initial POST to start job with the public image URL
+    const gradioPayload = {
+      url: publicImageUrl,
+      meta: { _type: 'gradio.FileData' }
+    };
+
     const initRes = await fetch(
-      `${HF_SPACE_API_URL}/run/predict`, // Using the /run/predict endpoint which is standard for public Gradio spaces
+      `${HF_SPACE_API_URL}/gradio_api/call/generate_video`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: [
-            publicImageUrl, // Sending the public URL instead of a data URL
+            gradioPayload, // Sending the public URL in the correct format
             prompt,
-            25, // motion_bucket_id
-            15, // fps
-            "animate", // augmentation_level ('animate', 'video', or 'disabled')
+            512,
+            896,
+            "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
+            2,
+            1,
+            4,
+            42,
+            true
           ]
         })
       }
@@ -97,22 +107,61 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const responseJson = await initRes.json();
-    
-    // 5️⃣ Extract video URL directly from the response
-    const videoData = responseJson?.data?.[0];
-    if (!videoData || !videoData.name) {
-      console.error("Could not find video data in the response:", responseJson);
+    const initText = await initRes.text();
+    const match = initText.match(/"event_id"\s*:\s*"([^"]+)"/);
+    if (!match) {
+      console.error('Could not parse event_id from SSE response:', initText);
       return NextResponse.json(
-        { error: 'The video service returned an unexpected response.' },
+        { error: `Could not start video generation. Please try again.` },
+        { status: 500 }
+      );
+    }
+    const eventId = match[1];
+
+    const resultRes = await fetch(
+      `${HF_SPACE_API_URL}/gradio_api/call/generate_video/${eventId}`
+    );
+    if (!resultRes.ok) {
+      const text = await resultRes.text();
+      console.error('Result request to Hugging Face Space failed:', text);
+      return NextResponse.json(
+        { error: `Failed to retrieve the generated video. Please try again.` },
+        { status: 502 }
+      );
+    }
+
+    const resultText = await resultRes.text();
+    const dataLines = resultText.split('\n').filter(line => line.startsWith('data: '));
+    if (dataLines.length === 0) {
+      console.error('No data in SSE result:', resultText);
+      return NextResponse.json(
+        { error: `No video data was returned from the service.` },
+        { status: 500 }
+      );
+    }
+    const lastData = dataLines[dataLines.length - 1].replace(/^data: /, '');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(lastData);
+    } catch {
+      console.error('Failed to JSON-parse SSE data:', lastData);
+      return NextResponse.json(
+        { error: `The video service returned an invalid response.` },
         { status: 500 }
       );
     }
 
-    // The response from this type of space is often a temporary file path
-    const videoUrl = `${HF_SPACE_API_URL}/file=${videoData.name}`;
+    console.log('Full response from video service:', JSON.stringify(parsed, null, 2));
 
-    // 6️⃣ Return the final video URL
+    const videoUrl = findVideoUrl(parsed);
+
+    if (!videoUrl) {
+      return NextResponse.json(
+        { error: `The generated video could not be found in the response.` },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ videoUrl }, { status: 200 });
 
   } catch (error) {
@@ -122,4 +171,26 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// You can keep the same findVideoUrl function from the previous version
+function findVideoUrl(data: unknown): string | null {
+    if (typeof data === 'string' && data.match(/\.(mp4|webm|mov|avi)$/)) {
+        return data;
+    }
+    if (Array.isArray(data)) {
+        for (const item of data) {
+            const url = findVideoUrl(item);
+            if (url) return url;
+        }
+    }
+    if (typeof data === 'object' && data !== null) {
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const url = findVideoUrl((data as Record<string, unknown>)[key]);
+                if (url) return url;
+            }
+        }
+    }
+    return null;
 }
