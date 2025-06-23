@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
   const prompt = formData.get('prompt') as string | null;
+  const imageStrength = parseFloat(formData.get('imageStrength') as string || '0.85');
   
   if (!file || !prompt) {
     return NextResponse.json(
@@ -48,11 +49,11 @@ export async function POST(req: NextRequest) {
         input: {
           image_path: dataUri,
           prompt: prompt,
+          image_strength: imageStrength, // Pass the image strength to the API
         }
       }
     );
     
-    // The output from Replicate should be the URL of the generated video
     const videoUrl = Array.isArray(output) ? output[0] : output;
 
     if (!videoUrl || typeof videoUrl !== 'string') {

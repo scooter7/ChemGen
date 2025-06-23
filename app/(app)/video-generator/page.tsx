@@ -8,6 +8,7 @@ import NextImage from 'next/image';
 interface VideoFormState {
   prompt: string;
   selectedImageUrl: string | null;
+  imageStrength: number; // New state for the slider
 }
 
 interface ImageResource {
@@ -20,6 +21,7 @@ export default function VideoGeneratorPage() {
   const [formData, setFormData] = useState<VideoFormState>({
     prompt: '',
     selectedImageUrl: null,
+    imageStrength: 0.85, // Default value for the slider
   });
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,9 +47,12 @@ export default function VideoGeneratorPage() {
     fetchImageLibrary();
   }, []);
 
-  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    const { name, value, type } = event.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'range' ? parseFloat(value) : value,
+    }));
   };
 
   const handleImageSelectAndFetch = async (image: ImageResource) => {
@@ -82,6 +87,7 @@ export default function VideoGeneratorPage() {
       const formDataToSubmit = new FormData();
       formDataToSubmit.append('file', selectedImageFile);
       formDataToSubmit.append('prompt', formData.prompt);
+      formDataToSubmit.append('imageStrength', formData.imageStrength.toString()); // Add image strength to the form data
 
       const response = await fetch('/api/generate-video', {
         method: 'POST',
@@ -159,6 +165,28 @@ export default function VideoGeneratorPage() {
                 required
               />
             </div>
+            
+            {/* New Image Strength Slider */}
+            <div>
+              <label htmlFor="imageStrength" className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                3. Image Strength: <span className="font-bold ml-1">{formData.imageStrength.toFixed(2)}</span>
+              </label>
+              <input
+                id="imageStrength"
+                name="imageStrength"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={formData.imageStrength}
+                onChange={handleInputChange}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-600"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Higher values will make the video look more like the original image.
+              </p>
+            </div>
+
 
             <div className="flex justify-end pt-2">
               <button type="submit" disabled={isLoading || !selectedImageFile} className="px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 flex items-center justify-center">
