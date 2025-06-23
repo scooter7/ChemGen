@@ -9,7 +9,6 @@ const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL;
 async function fileToDataURL(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  // The Gradio API expects this specific format for file uploads
   return `data:${file.type};base64,${buffer.toString('base64')}`;
 }
 
@@ -36,23 +35,23 @@ export async function POST(req: NextRequest) {
 
     // This JSON body is structured exactly as the /generate_video API expects.
     const apiRequestBody = {
-      api_name: "/generate_video", // Explicitly specify which API to call
       data: [
-        imageDataUrl, // input_image
-        prompt,       // prompt
-        512,          // height
-        896,          // width
-        "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature", // negative_prompt
-        2,            // duration_seconds
-        1,            // guidance_scale
-        4,            // steps
-        42,           // seed
-        true,         // randomize_seed
+        imageDataUrl,
+        prompt,
+        512,
+        896,
+        "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
+        2,
+        1,
+        4,
+        42,
+        true,
       ]
     };
 
-    // The endpoint for Gradio APIs is /run/predict
-    const response = await fetch(`${HF_SPACE_API_URL}/run/predict`, {
+    // CORRECTION: The endpoint for a named function in Gradio is typically /run/{function_name}
+    // Let's try calling the named endpoint directly.
+    const response = await fetch(`${HF_SPACE_API_URL}/run/generate_video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(apiRequestBody),
@@ -60,13 +59,10 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      // The error you received was the HTML for a 404 page.
-      // This check will now throw a more specific error if the API fails.
       throw new Error(`The video generation API failed: ${errorBody}`);
     }
 
     const result = await response.json();
-
     const videoDataUrl = result?.data?.[0]?.name;
 
     if (!videoDataUrl) {
