@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
 
     // This JSON body is structured exactly as the /generate_video API expects.
     const apiRequestBody = {
+      api_name: "/generate_video", // Explicitly specify which API to call
       data: [
         imageDataUrl, // input_image
         prompt,       // prompt
@@ -50,8 +51,8 @@ export async function POST(req: NextRequest) {
       ]
     };
 
-    // The endpoint for this specific Gradio API is /run/generate_video
-    const response = await fetch(`${HF_SPACE_API_URL}/run/generate_video`, {
+    // The endpoint for Gradio APIs is /run/predict
+    const response = await fetch(`${HF_SPACE_API_URL}/run/predict`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(apiRequestBody),
@@ -59,6 +60,8 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorBody = await response.text();
+      // The error you received was the HTML for a 404 page.
+      // This check will now throw a more specific error if the API fails.
       throw new Error(`The video generation API failed: ${errorBody}`);
     }
 
