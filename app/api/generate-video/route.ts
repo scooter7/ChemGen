@@ -62,28 +62,38 @@ export async function POST(req: NextRequest) {
     ]);
 
     const response = result.response;
+    // The video data is in the `parts` array of the first candidate's content
     const firstPart = response.candidates?.[0]?.content?.parts?.[0];
 
-    // Check for the existence of firstPart and fileData before using them
+    // Check if the firstPart and fileData exist
     if (!firstPart || !('fileData' in firstPart) || !firstPart.fileData) {
-      console.error("No video data found in the Gemini API response:", response);
+      console.error("No video data found in the Gemini API response:", JSON.stringify(response, null, 2));
       return NextResponse.json(
         { error: 'The video generation service did not return a video.' },
         { status: 500 }
       );
     }
     
-    // Now that we've checked for fileData, TypeScript knows it's safe to use
-    const videoBase64 = firstPart.fileData.fileUri.split(',')[1];
+    const { fileUri, mimeType } = firstPart.fileData;
+
+    // Extract the base64 video data from the file URI
+    const videoBase64 = fileUri.split(',')[1];
+    if (!videoBase64) {
+      console.error("Could not extract base64 data from file URI:", fileUri);
+      return NextResponse.json(
+        { error: 'The video service returned an invalid video format.' },
+        { status: 500 }
+      );
+    }
     const videoBuffer = Buffer.from(videoBase64, 'base64');
-    const videoMimeType = firstPart.fileData.mimeType;
     
+    // Upload the generated video to Supabase
     const videoFileName = `generated-video-${userId}-${nanoid()}.mp4`;
     const { data: uploadData, error: uploadError } = await supabaseAdmin
         .storage
         .from(VIDEO_BUCKET_NAME)
         .upload(videoFileName, videoBuffer, {
-            contentType: videoMimeType,
+            contentType: mimeType,
             upsert: false
         });
 
@@ -92,6 +102,7 @@ export async function POST(req: NextRequest) {
         throw new Error("Could not save the generated video.");
     }
 
+    // Get the public URL for the newly uploaded video
     const { data: publicUrlData } = supabaseAdmin.storage
         .from(VIDEO_BUCKET_NAME)
         .getPublicUrl(uploadData.path);
