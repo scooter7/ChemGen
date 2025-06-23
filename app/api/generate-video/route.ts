@@ -6,22 +6,23 @@ import { authOptions } from '@/lib/authOptions';
 import { Buffer } from 'buffer';
 
 const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL;
-// e.g. https://scooter7-wan2-1-fast.hf.space
+// e.g. "https://scooter7-wan2-1-fast.hf.space"
 
-// Turn an uploaded File into the dict that gradio_client.handle_file() would produce:
-async function fileToInputDict(file: File): Promise<{
+interface ImageInputDict {
   url: string;
   mime_type: string;
   orig_name: string;
   size: number;
   is_stream: boolean;
-  meta: Record<string, any>;
-}> {
+  meta: Record<string, unknown>;
+}
+
+// Turn an uploaded File into what gradio_client.handle_file() would produce:
+async function fileToInputDict(file: File): Promise<ImageInputDict> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const dataUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
   return {
-    url: dataUrl,
+    url: `data:${file.type};base64,${buffer.toString('base64')}`,
     mime_type: file.type,
     orig_name: file.name,
     size: buffer.length,
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2) Parse form data
+    // 2) Parse multipart form
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const prompt = formData.get('prompt') as string | null;
@@ -62,20 +63,20 @@ export async function POST(req: NextRequest) {
     // 4) Construct the Gradio payload
     const payload = {
       data: [
-        /* input_image */       inputImage,
-        /* prompt */            prompt,
-        /* height */            512,
-        /* width */             896,
-        /* negative_prompt */   "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-        /* duration_seconds */  2,
-        /* guidance_scale */    1,
-        /* steps */             4,
-        /* seed */              42,
-        /* randomize_seed */    true
+        inputImage,
+        prompt,
+        512,
+        896,
+        "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
+        2,
+        1,
+        4,
+        42,
+        true
       ]
     };
 
-    // 5) Call the named endpoint
+    // 5) Call the named /generate_video endpoint
     const res = await fetch(
       `${HF_SPACE_API_URL}/call/generate_video`,
       {
@@ -86,8 +87,8 @@ export async function POST(req: NextRequest) {
     );
 
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Video API call failed: ${text}`);
+      const errText = await res.text();
+      throw new Error(`Video API call failed: ${errText}`);
     }
 
     // 6) Parse the result
@@ -101,8 +102,9 @@ export async function POST(req: NextRequest) {
 
     // 7) Return the video path/URL
     return NextResponse.json({ videoUrl: entry.video }, { status: 200 });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
