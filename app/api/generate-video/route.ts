@@ -1,9 +1,9 @@
 // file: app/api/generate-video/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession }        from 'next-auth';
-import { authOptions }            from '@/lib/authOptions';
-import { Buffer }                 from 'buffer';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
+import { Buffer } from 'buffer';
 
 const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL!;
 // e.g. "https://scooter7-wan2-1-fast.hf.space"
@@ -21,115 +21,129 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  try {
-    // 1) Auth check
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // 2) Parse inputs
-    const formData = await req.formData();
-    const file     = formData.get('file')   as File | null;
-    const prompt   = formData.get('prompt') as string | null;
-    if (!file || !prompt) {
-      return NextResponse.json(
-        { error: 'Both an image file and a prompt are required.' },
-        { status: 400 }
-      );
-    }
-
-    // 3) Build Gradio‐style File dict
-    const buf       = Buffer.from(await file.arrayBuffer());
-    const dataUrl   = `data:${file.type};base64,${buf.toString('base64')}`;
-    const gradioFile: GradioFile = {
-      path: dataUrl,
-      meta: { _type: 'gradio.FileData' }
-    };
-
-    // 4) INITIAL POST → SSE stream with event_id JSON embedded
-    const initRes = await fetch(
-      `${HF_SPACE_API_URL}/gradio_api/call/generate_video`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: [
-            gradioFile,
-            prompt,
-            512,
-            896,
-            "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-            2,
-            1,
-            4,
-            42,
-            true
-          ]
-        })
-      }
-    );
-    if (!initRes.ok) {
-      const txt = await initRes.text();
-      throw new Error(`Init request failed: ${txt}`);
-    }
-
-    // 5) Read the SSE text and extract the event_id
-    const initText = await initRes.text();
-    const idMatch = initText.match(/"event_id"\s*:\s*"([^"]+)"/);
-    if (!idMatch) {
-      throw new Error(`Could not parse event_id from:\n${initText}`);
-    }
-    const eventId = idMatch[1];
-
-    // 6) GET the SSE result stream
-    const resultRes = await fetch(
-      `${HF_SPACE_API_URL}/gradio_api/call/generate_video/${eventId}`
-    );
-    if (!resultRes.ok) {
-      const txt = await resultRes.text();
-      throw new Error(`Result request failed: ${txt}`);
-    }
-
-    // 7) Read the SSE text and extract the final data block
-    const resultText = await resultRes.text();
-    // Grab all lines starting with `data: ` and pick the last one
-    const dataLines = resultText
-      .split('\n')
-      .filter((l) => l.startsWith('data: '));
-    if (dataLines.length === 0) {
-      throw new Error(`No data in SSE result:\n${resultText}`);
-    }
-    const lastData = dataLines[dataLines.length - 1].replace(/^data:\s*/, '');
-    let parsed;
-    try {
-      parsed = JSON.parse(lastData);
-    } catch (e) {
-      throw new Error(`Failed to JSON-parse SSE data:\n${lastData}`);
-    }
-
-    // 8) Extract the video URL/path from the parsed result
-    // Gradio returns either [ "<video_path>", <seed> ] or [ { video: "<video_path>", ... }, <seed> ]
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error(`Unexpected parsed result: ${JSON.stringify(parsed)}`);
-    }
-    const entry = parsed[0];
-    let videoUrl: string;
-    if (typeof entry === 'string') {
-      videoUrl = entry;
-    } else if (
-      typeof entry === 'object' &&
-      entry !== null &&
-      typeof (entry as any).video === 'string'
-    ) {
-      videoUrl = (entry as any).video;
-    } else {
-      throw new Error(`Could not find video URL in: ${JSON.stringify(entry)}`);
-    }
-
-    // 9) Return to client
-    return NextResponse.json({ videoUrl }, { status: 200 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+  // 1️⃣ Auth check
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // 2️⃣ Parse form data
+  const formData = await req.formData();
+  const file = formData.get('file') as File | null;
+  const prompt = formData.get('prompt') as string | null;
+  if (!file || !prompt) {
+    return NextResponse.json(
+      { error: 'Both an image file and a prompt are required.' },
+      { status: 400 }
+    );
+  }
+
+  // 3️⃣ Build Gradio-style File dict
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const dataUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
+  const gradioFile: GradioFile = {
+    path: dataUrl,
+    meta: { _type: 'gradio.FileData' }
+  };
+
+  // 4️⃣ Initial POST to start job (SSE stream) and get event_id
+  const initRes = await fetch(
+    `${HF_SPACE_API_URL}/gradio_api/call/generate_video`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: [
+          gradioFile,                                    // [0] input_image
+          prompt,                                        // [1] prompt
+          512,                                           // [2] height
+          896,                                           // [3] width
+          "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
+                                                         // [4] negative_prompt
+          2,                                             // [5] duration_seconds
+          1,                                             // [6] guidance_scale
+          4,                                             // [7] steps
+          42,                                            // [8] seed
+          true                                           // [9] randomize_seed
+        ]
+      })
+    }
+  );
+  if (!initRes.ok) {
+    const text = await initRes.text();
+    return NextResponse.json(
+      { error: `Init request failed: ${text}` },
+      { status: 500 }
+    );
+  }
+
+  // 5️⃣ Extract event_id from SSE response text
+  const initText = await initRes.text();
+  const match = initText.match(/"event_id"\s*:\s*"([^"]+)"/);
+  if (!match) {
+    return NextResponse.json(
+      { error: `Could not parse event_id from SSE response: ${initText}` },
+      { status: 500 }
+    );
+  }
+  const eventId = match[1];
+
+  // 6️⃣ Poll GET endpoint for final result SSE stream
+  const resultRes = await fetch(
+    `${HF_SPACE_API_URL}/gradio_api/call/generate_video/${eventId}`
+  );
+  if (!resultRes.ok) {
+    const text = await resultRes.text();
+    return NextResponse.json(
+      { error: `Result request failed: ${text}` },
+      { status: 500 }
+    );
+  }
+
+  // 7️⃣ Parse last SSE data line as JSON
+  const resultText = await resultRes.text();
+  const dataLines = resultText.split('\n').filter(line => line.startsWith('data: '));
+  if (dataLines.length === 0) {
+    return NextResponse.json(
+      { error: `No data in SSE result: ${resultText}` },
+      { status: 500 }
+    );
+  }
+  const lastData = dataLines[dataLines.length - 1].replace(/^data: /, '');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(lastData);
+  } catch {
+    return NextResponse.json(
+      { error: `Failed to JSON-parse SSE data: ${lastData}` },
+      { status: 500 }
+    );
+  }
+
+  // 8️⃣ Extract video URL/path
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return NextResponse.json(
+      { error: `Unexpected parsed result: ${JSON.stringify(parsed)}` },
+      { status: 500 }
+    );
+  }
+  const entry = parsed[0];
+  let videoUrl: string;
+  if (typeof entry === 'string') {
+    videoUrl = entry;
+  } else if (
+    typeof entry === 'object' &&
+    entry !== null &&
+    typeof (entry as Record<string, unknown>).video === 'string'
+  ) {
+    videoUrl = (entry as Record<string, string>).video;
+  } else {
+    return NextResponse.json(
+      { error: `Could not find video URL in: ${JSON.stringify(entry)}` },
+      { status: 500 }
+    );
+  }
+
+  // 9️⃣ Return the video URL
+  return NextResponse.json({ videoUrl }, { status: 200 });
 }
