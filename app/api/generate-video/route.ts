@@ -4,10 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { createClient } from '@supabase/supabase-js';
+import { nanoid } from 'nanoid';
 import { Buffer } from 'buffer';
 
-// Initialize the Google Generative AI client
+// Initialize clients
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const supabaseAdmin = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+const VIDEO_BUCKET_NAME = 'generated-videos';
 
 const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -17,21 +21,20 @@ const safetySettings = [
 ];
 
 export async function POST(req: NextRequest) {
-  if (!process.env.GOOGLE_API_KEY) {
-    console.error("GOOGLE_API_KEY is not set.");
+  if (!process.env.GOOGLE_API_KEY || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("One or more environment variables are not set.");
     return NextResponse.json(
-      { error: 'Video generation service is not configured.' },
+      { error: 'Server is not configured correctly.' },
       { status: 500 }
     );
   }
 
-  // 1️⃣ Auth check
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const userId = session.user.id;
 
-  // 2️⃣ Parse form data
   const formData = await req.formData();
   const file = formData.get('file') as File | null;
   const prompt = formData.get('prompt') as string | null;
@@ -43,15 +46,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 3️⃣ Convert the image file to a base64 string
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const base64Image = buffer.toString('base64');
-
-    // 4️⃣ Call the Gemini API with the correct model name
+    const imageBuffer = Buffer.from(await file.arrayBuffer());
+    const base64Image = imageBuffer.toString('base64');
+    
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
     
     const result = await model.generateContent([
-        prompt,
+        `Animate this image based on the following prompt: "${prompt}"`,
         {
             inlineData: {
                 data: base64Image,
@@ -60,23 +61,55 @@ export async function POST(req: NextRequest) {
         }
     ]);
 
-    const videoUrl = result.response.text();
+    const response = result.response;
+    const firstPart = response.candidates?.[0]?.content?.parts?.[0];
 
-    if (!videoUrl) {
-      console.error("No video URL found in the Gemini API response:", result.response);
+    if (!firstPart || !('fileData' in firstPart)) {
+      console.error("No video data found in the Gemini API response:", response);
       return NextResponse.json(
-        { error: 'The generated video could not be found in the response.' },
+        { error: 'The video generation service did not return a video.' },
         { status: 500 }
       );
     }
     
-    // 5️⃣ Return the video URL
-    return NextResponse.json({ videoUrl }, { status: 200 });
+    // Extract the base64 video data
+    const videoBase64 = firstPart.fileData.fileUri.split(',')[1];
+    const videoBuffer = Buffer.from(videoBase64, 'base64');
+    const videoMimeType = firstPart.fileData.mimeType;
+    
+    // Upload the generated video to Supabase
+    const videoFileName = `generated-video-${userId}-${nanoid()}.mp4`;
+    const { data: uploadData, error: uploadError } = await supabaseAdmin
+        .storage
+        .from(VIDEO_BUCKET_NAME)
+        .upload(videoFileName, videoBuffer, {
+            contentType: videoMimeType,
+            upsert: false
+        });
+
+    if (uploadError) {
+        console.error("Supabase video upload error:", uploadError);
+        throw new Error("Could not save the generated video.");
+    }
+
+    // Get the public URL for the newly uploaded video
+    const { data: publicUrlData } = supabaseAdmin.storage
+        .from(VIDEO_BUCKET_NAME)
+        .getPublicUrl(uploadData.path);
+
+    const publicVideoUrl = publicUrlData.publicUrl;
+
+    if (!publicVideoUrl) {
+      throw new Error("Could not get a public URL for the generated video.");
+    }
+
+    return NextResponse.json({ videoUrl: publicVideoUrl }, { status: 200 });
 
   } catch (error) {
     console.error('An unexpected error occurred in generate-video API:', error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
     return NextResponse.json(
-      { error: 'An unexpected error occurred. Please check the server logs.' },
+      { error: `An unexpected error occurred: ${errorMessage}` },
       { status: 500 }
     );
   }
