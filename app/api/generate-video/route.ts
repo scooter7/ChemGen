@@ -37,18 +37,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Convert the image file to a base64 string
+    // Convert the image file to a base64 data URI
     const imageBuffer = Buffer.from(await file.arrayBuffer());
-    const base64Image = `data:${file.type};base64,${imageBuffer.toString('base64')}`;
+    const dataUri = `data:${file.type};base64,${imageBuffer.toString('base64')}`;
 
     // Call the Replicate API
     const output = await replicate.run(
       process.env.REPLICATE_VIDEO_MODEL as `${string}/${string}:${string}`,
       {
         input: {
-          image: base64Image,
+          image_path: dataUri,
           prompt: prompt,
-          // You can add other parameters here based on the model's documentation on Replicate
         }
       }
     );
