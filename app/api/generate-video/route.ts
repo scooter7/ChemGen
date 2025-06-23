@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64Image = buffer.toString('base64');
 
-    // 4️⃣ Call the Veo API
-    const model = genAI.getGenerativeModel({ model: "veo-2.0-generate-001", safetySettings });
+    // 4️⃣ Call the Gemini API with the correct model name
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash", safetySettings });
     
     const result = await model.generateContent([
         prompt,
@@ -60,12 +60,10 @@ export async function POST(req: NextRequest) {
         }
     ]);
 
-    // The Veo API response should contain the video directly
-    // This part might need adjustment based on the exact response structure
-    const videoUrl = result.response.text(); // This is a placeholder; the actual response might be more complex
+    const videoUrl = result.response.text();
 
     if (!videoUrl) {
-      console.error("No video URL found in the Veo API response:", result.response);
+      console.error("No video URL found in the Gemini API response:", result.response);
       return NextResponse.json(
         { error: 'The generated video could not be found in the response.' },
         { status: 500 }
