@@ -14,10 +14,7 @@ const VIDEO_BUCKET_NAME = 'generated-videos';
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-interface GradioFile {
-  url: string; // Sending a URL instead of a path/data URL
-  meta: { _type: 'gradio.FileData' };
-}
+// The GradioFile interface has been removed as it is no longer used.
 
 export async function POST(req: NextRequest) {
   if (!HF_SPACE_API_URL || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -83,7 +80,7 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: [
-            gradioPayload, // Sending the public URL in the correct format
+            gradioPayload,
             prompt,
             512,
             896,
@@ -173,7 +170,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// You can keep the same findVideoUrl function from the previous version
 function findVideoUrl(data: unknown): string | null {
     if (typeof data === 'string' && data.match(/\.(mp4|webm|mov|avi)$/)) {
         return data;
