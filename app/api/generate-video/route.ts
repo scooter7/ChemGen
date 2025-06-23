@@ -14,6 +14,7 @@ interface GradioFile {
 }
 
 export async function POST(req: NextRequest) {
+  // 1️⃣ Config check
   if (!HF_SPACE_API_URL) {
     return NextResponse.json(
       { error: 'VIDEO_GENERATION_API_URL is not set.' },
@@ -22,13 +23,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1️⃣ Auth check
+    // 2️⃣ Auth check
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2️⃣ Parse form data
+    // 3️⃣ Parse inputs
     const formData = await req.formData();
     const file     = formData.get('file')   as File | null;
     const prompt   = formData.get('prompt') as string | null;
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3️⃣ Build Gradio-style File dict
+    // 4️⃣ Build Gradio‐style file object
     const arrayBuffer = await file.arrayBuffer();
     const buffer      = Buffer.from(arrayBuffer);
     const dataUrl     = `data:${file.type};base64,${buffer.toString('base64')}`;
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       meta: { _type: 'gradio.FileData' }
     };
 
-    // 4️⃣ Initial POST to get the EVENT_ID
+    // 5️⃣ Initial POST to start the job (SSE stream)
     const initRes = await fetch(
       `${HF_SPACE_API_URL}/gradio_api/call/generate_video`,
       {
@@ -56,52 +57,45 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: [
-            gradioFile, // [0] input_image
-            prompt,     // [1] prompt
-            512,        // [2] height
-            896,        // [3] width
+            gradioFile,
+            prompt,
+            512,
+            896,
             "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-                        // [4] negative_prompt
-            2,          // [5] duration_seconds
-            1,          // [6] guidance_scale
-            4,          // [7] steps
-            42,         // [8] seed
-            true        // [9] randomize_seed
+            2,
+            1,
+            4,
+            42,
+            true
           ]
         })
       }
     );
     if (!initRes.ok) {
-      const txt = await initRes.text();
-      throw new Error(`Init request failed: ${txt}`);
+      const text = await initRes.text();
+      throw new Error(`Init request failed: ${text}`);
     }
 
-    // 5️⃣ Extract event_id
-    const initJson: unknown = await initRes.json();
-    let eventId: string;
-    if (
-      typeof initJson === 'object' &&
-      initJson !== null &&
-      'event_id' in initJson &&
-      typeof (initJson as Record<string, unknown>)['event_id'] === 'string'
-    ) {
-      eventId = (initJson as Record<string, string>)['event_id'];
-    } else {
-      throw new Error(`Could not parse event ID: ${JSON.stringify(initJson)}`);
+    // 6️⃣ Read the SSE text and extract the event_id
+    const sseText = await initRes.text();
+    const match = sseText.match(/"event_id"\s*:\s*"([^"]+)"/);
+    if (!match) {
+      throw new Error(`Could not parse event ID from SSE response: ${sseText}`);
     }
+    const eventId = match[1];
 
-    // 6️⃣ GET the result
+    // 7️⃣ Poll the GET endpoint for the final result
     const resultRes = await fetch(
       `${HF_SPACE_API_URL}/gradio_api/call/generate_video/${eventId}`
     );
     if (!resultRes.ok) {
-      const txt = await resultRes.text();
-      throw new Error(`Result request failed: ${txt}`);
+      const text = await resultRes.text();
+      throw new Error(`Result request failed: ${text}`);
     }
 
-    // 7️⃣ Parse the final output
-    const resultJson: unknown = await resultRes.json();
-    if (!Array.isArray(resultJson)) {
+    // 8️⃣ Parse the JSON array result
+    const resultJson = await resultRes.json();
+    if (!Array.isArray(resultJson) || resultJson.length === 0) {
       throw new Error(`Unexpected result format: ${JSON.stringify(resultJson)}`);
     }
     const entry = resultJson[0];
@@ -109,21 +103,21 @@ export async function POST(req: NextRequest) {
     if (typeof entry === 'string') {
       videoUrl = entry;
     } else if (
+      entry &&
       typeof entry === 'object' &&
-      entry !== null &&
       'video' in entry &&
-      typeof (entry as Record<string, unknown>)['video'] === 'string'
+      typeof (entry as Record<string, unknown>).video === 'string'
     ) {
-      videoUrl = (entry as Record<string, string>)['video'];
+      videoUrl = (entry as Record<string, string>).video;
     } else {
       throw new Error(`Unexpected result entry: ${JSON.stringify(entry)}`);
     }
 
-    // 8️⃣ Return to client
+    // 9️⃣ Return back to the client
     return NextResponse.json({ videoUrl }, { status: 200 });
 
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
