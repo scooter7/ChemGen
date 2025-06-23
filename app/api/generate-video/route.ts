@@ -31,14 +31,13 @@ export async function POST(req: NextRequest) {
     if (!file || !prompt) {
       return NextResponse.json({ error: 'An image file and a prompt are required.' }, { status: 400 });
     }
-    
+
     const imageDataUrl = await fileToDataURL(file);
 
     // This JSON body is structured exactly as the /generate_video API expects.
-    // The `data` array contains all 10 parameters in the correct order.
     const apiRequestBody = {
       data: [
-        imageDataUrl, // input_image (as a data URL)
+        imageDataUrl, // input_image
         prompt,       // prompt
         512,          // height
         896,          // width
@@ -51,7 +50,7 @@ export async function POST(req: NextRequest) {
       ]
     };
 
-    // The endpoint for Gradio APIs is typically /run/predict
+    // The endpoint for this specific Gradio API is /run/generate_video
     const response = await fetch(`${HF_SPACE_API_URL}/run/generate_video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -64,10 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await response.json();
-    
-    // According to the docs, the video is in the first element of the returned data array.
-    // The gradio_client returns a file object, which in a raw API call
-    // is a dictionary containing the base64 data URL in its `name` property.
+
     const videoDataUrl = result?.data?.[0]?.name;
 
     if (!videoDataUrl) {

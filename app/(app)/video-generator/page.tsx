@@ -49,10 +49,10 @@ export default function VideoGeneratorPage() {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
-  
+
   const handleImageSelectAndFetch = async (image: ImageResource) => {
     if (!image.publicUrl) return;
-    
+
     setFormData(prev => ({ ...prev, selectedImageUrl: image.publicUrl! }));
     setSelectedImageFile(null);
 
@@ -62,6 +62,7 @@ export default function VideoGeneratorPage() {
       const file = new File([blob], image.fileName, { type: blob.type });
       setSelectedImageFile(file);
     } catch (e) {
+      console.error("Could not retrieve the selected image file:", e);
       setError("Could not retrieve the selected image file. Please try another.");
     }
   };
@@ -91,7 +92,7 @@ export default function VideoGeneratorPage() {
       if (!response.ok) {
         throw new Error(result.error || 'Failed to generate video.');
       }
-      
+
       setGeneratedVideoUrl(result.videoUrl);
 
     } catch (err) {
@@ -125,7 +126,7 @@ export default function VideoGeneratorPage() {
             ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-96 overflow-y-auto p-2 border rounded-md custom-scrollbar">
                     {images.map(image => (
-                        <div 
+                        <div
                             key={image.id}
                             onClick={() => handleImageSelectAndFetch(image)}
                             className={`relative aspect-square rounded-md overflow-hidden cursor-pointer transition-all duration-200 ${formData.selectedImageUrl === image.publicUrl ? 'ring-4 ring-offset-2 ring-indigo-500' : 'hover:opacity-80'}`}
@@ -143,7 +144,7 @@ export default function VideoGeneratorPage() {
                 </div>
             )}
           </div>
-          
+
           <div className="space-y-6">
             <div>
               <label htmlFor="prompt" className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -158,7 +159,7 @@ export default function VideoGeneratorPage() {
                 required
               />
             </div>
-            
+
             <div className="flex justify-end pt-2">
               <button type="submit" disabled={isLoading || !selectedImageFile} className="px-8 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 flex items-center justify-center">
                 {isLoading ? (<><Loader2 className="mr-2 h-5 w-5 animate-spin" />Generating Video...</>) : ('Generate Video')}
