@@ -64,7 +64,8 @@ export async function POST(req: NextRequest) {
     const response = result.response;
     const firstPart = response.candidates?.[0]?.content?.parts?.[0];
 
-    if (!firstPart || !('fileData' in firstPart)) {
+    // Check for the existence of firstPart and fileData before using them
+    if (!firstPart || !('fileData' in firstPart) || !firstPart.fileData) {
       console.error("No video data found in the Gemini API response:", response);
       return NextResponse.json(
         { error: 'The video generation service did not return a video.' },
@@ -72,12 +73,11 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Extract the base64 video data
+    // Now that we've checked for fileData, TypeScript knows it's safe to use
     const videoBase64 = firstPart.fileData.fileUri.split(',')[1];
     const videoBuffer = Buffer.from(videoBase64, 'base64');
     const videoMimeType = firstPart.fileData.mimeType;
     
-    // Upload the generated video to Supabase
     const videoFileName = `generated-video-${userId}-${nanoid()}.mp4`;
     const { data: uploadData, error: uploadError } = await supabaseAdmin
         .storage
@@ -92,7 +92,6 @@ export async function POST(req: NextRequest) {
         throw new Error("Could not save the generated video.");
     }
 
-    // Get the public URL for the newly uploaded video
     const { data: publicUrlData } = supabaseAdmin.storage
         .from(VIDEO_BUCKET_NAME)
         .getPublicUrl(uploadData.path);
