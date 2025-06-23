@@ -5,13 +5,29 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { Buffer } from 'buffer';
 
-const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL; 
-// e.g. "https://scooter7-wan2-1-fast.hf.space"
+const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL;
+// e.g. https://scooter7-wan2-1-fast.hf.space
 
-async function fileToDataURL(file: File): Promise<string> {
+// Turn an uploaded File into the dict that gradio_client.handle_file() would produce:
+async function fileToInputDict(file: File): Promise<{
+  url: string;
+  mime_type: string;
+  orig_name: string;
+  size: number;
+  is_stream: boolean;
+  meta: Record<string, any>;
+}> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  return `data:${file.type};base64,${buffer.toString('base64')}`;
+  const dataUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
+  return {
+    url: dataUrl,
+    mime_type: file.type,
+    orig_name: file.name,
+    size: buffer.length,
+    is_stream: false,
+    meta: {},
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -29,7 +45,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2) Parse multipart form
+    // 2) Parse form data
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const prompt = formData.get('prompt') as string | null;
@@ -40,26 +56,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3) Convert to base64 data URL
-    const imageDataUrl = await fileToDataURL(file);
+    // 3) Build the input_image dict
+    const inputImage = await fileToInputDict(file);
 
-    // 4) Build the JSON payload for the named /generate_video endpoint
+    // 4) Construct the Gradio payload
     const payload = {
-      input_image: { url: imageDataUrl },
-      prompt: prompt,
-      height: 512,
-      width: 896,
-      negative_prompt: "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-      duration_seconds: 2,
-      guidance_scale: 1,
-      steps: 4,
-      seed: 42,
-      randomize_seed: true
+      data: [
+        /* input_image */       inputImage,
+        /* prompt */            prompt,
+        /* height */            512,
+        /* width */             896,
+        /* negative_prompt */   "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
+        /* duration_seconds */  2,
+        /* guidance_scale */    1,
+        /* steps */             4,
+        /* seed */              42,
+        /* randomize_seed */    true
+      ]
     };
 
-    // 5) POST to the REST endpoint /api/generate_video
-    const response = await fetch(
-      `${HF_SPACE_API_URL}/api/generate_video`,
+    // 5) Call the named endpoint
+    const res = await fetch(
+      `${HF_SPACE_API_URL}/call/generate_video`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,26 +85,22 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    if (!response.ok) {
-      const text = await response.text();
+    if (!res.ok) {
+      const text = await res.text();
       throw new Error(`Video API call failed: ${text}`);
     }
 
-    // 6) Parse the JSON result
-    const result = await response.json();
-    // Gradio returns: { data: [ { video: "filepath", subtitles: null | "path" }, <seed> ] }
-    const entry = result.data?.[0];
+    // 6) Parse the result
+    const json = await res.json();
+    // json.data: [ { video: "<filepath>", subtitles: "<filepath>|null" }, <seed> ]
+    const entry = Array.isArray(json.data) ? json.data[0] : null;
     if (!entry?.video) {
-      console.error('Unexpected API response:', result);
+      console.error('Unexpected API response:', json);
       throw new Error('No video returned from API.');
     }
 
-    // 7) Return the video URL/path
-    return NextResponse.json(
-      { videoUrl: entry.video },
-      { status: 200 }
-    );
-
+    // 7) Return the video path/URL
+    return NextResponse.json({ videoUrl: entry.video }, { status: 200 });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
