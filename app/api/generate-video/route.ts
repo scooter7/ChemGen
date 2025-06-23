@@ -5,8 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import { Buffer } from 'buffer';
 
-const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL;
+const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL; 
+// e.g. https://scooter7-wan2-1-fast.hf.space
 
+// Convert the uploaded File into a base64 data URL
 async function fileToDataURL(file: File): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
@@ -22,13 +24,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1) Ensure the user is authenticated
+    // — 1) Auth check
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2) Parse the multipart form data
+    // — 2) Parse form data
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const prompt = formData.get('prompt') as string | null;
@@ -39,11 +41,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3) Convert the uploaded image to a base64 data URL
+    // — 3) To base64 data URL
     const imageDataUrl = await fileToDataURL(file);
 
-    // 4) Build the payload exactly as the Space expects
-    const payload = {
+    // — 4) Build the Gradio /api/predict payload (fn_index = 2 → /generate_video)
+    const apiRequestBody = {
+      fn_index: 2,
       data: [
         /* input_image */       imageDataUrl,
         /* prompt */            prompt,
@@ -58,31 +61,34 @@ export async function POST(req: NextRequest) {
       ]
     };
 
-    // 5) POST to the Gradio “named endpoint” for generate_video
+    // — 5) POST to /api/predict
     const response = await fetch(
-      `${HF_SPACE_API_URL}/call/generate_video`,
+      `${HF_SPACE_API_URL}/api/predict`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(apiRequestBody),
       }
     );
-
     if (!response.ok) {
       const text = await response.text();
       throw new Error(`Video API call failed: ${text}`);
     }
 
+    // — 6) Parse the JSON and extract the video path
     const result = await response.json();
-    // The Space returns: data[0] = { video: <path>, subtitles: <path|null> }
-    const entry = result?.data?.[0];
+    // result.data: [ { video: "<filepath>", subtitles: "<filepath>|null" }, <seed> ]
+    const entry = result.data?.[0];
     if (!entry?.video) {
       console.error('Unexpected API response:', result);
       throw new Error('No video returned from API.');
     }
 
-    // 6) Return the video URL/path to the client
-    return NextResponse.json({ videoUrl: entry.video }, { status: 200 });
+    // — 7) Return the video URL/filepath
+    return NextResponse.json(
+      { videoUrl: entry.video },
+      { status: 200 }
+    );
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
