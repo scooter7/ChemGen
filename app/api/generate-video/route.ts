@@ -1,9 +1,9 @@
 // file: app/api/generate-video/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/authOptions';
-import { Buffer } from 'buffer';
+import { getServerSession }        from 'next-auth';
+import { authOptions }            from '@/lib/authOptions';
+import { Buffer }                 from 'buffer';
 
 const HF_SPACE_API_URL = process.env.VIDEO_GENERATION_API_URL!;
 // e.g. "https://scooter7-wan2-1-fast.hf.space"
@@ -22,16 +22,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // 1) Auth check
+    // 1️⃣ Auth check
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2) Parse form-data
+    // 2️⃣ Parse form data
     const formData = await req.formData();
-    const file = formData.get('file') as File | null;
-    const prompt = formData.get('prompt') as string | null;
+    const file     = formData.get('file')   as File | null;
+    const prompt   = formData.get('prompt') as string | null;
     if (!file || !prompt) {
       return NextResponse.json(
         { error: 'Both an image file and a prompt are required.' },
@@ -39,13 +39,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3) Build the Gradio-style File dict
+    // 3️⃣ Build Gradio-style File dict
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const dataUrl = `data:${file.type};base64,${buffer.toString('base64')}`;
-    const gradioFile: GradioFile = { path: dataUrl, meta: { _type: 'gradio.FileData' } };
+    const buffer      = Buffer.from(arrayBuffer);
+    const dataUrl     = `data:${file.type};base64,${buffer.toString('base64')}`;
+    const gradioFile: GradioFile = {
+      path: dataUrl,
+      meta: { _type: 'gradio.FileData' }
+    };
 
-    // 4) Initial POST to get EVENT_ID
+    // 4️⃣ Initial POST to get the EVENT_ID
     const initRes = await fetch(
       `${HF_SPACE_API_URL}/gradio_api/call/generate_video`,
       {
@@ -53,16 +56,17 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: [
-            gradioFile,
-            prompt,
-            512,
-            896,
+            gradioFile, // [0] input_image
+            prompt,     // [1] prompt
+            512,        // [2] height
+            896,        // [3] width
             "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards, watermark, text, signature",
-            2,
-            1,
-            4,
-            42,
-            true
+                        // [4] negative_prompt
+            2,          // [5] duration_seconds
+            1,          // [6] guidance_scale
+            4,          // [7] steps
+            42,         // [8] seed
+            true        // [9] randomize_seed
           ]
         })
       }
@@ -72,19 +76,21 @@ export async function POST(req: NextRequest) {
       throw new Error(`Init request failed: ${txt}`);
     }
 
-    // 5) Parse the EVENT_ID from response JSON
-    const initJson = await initRes.json();
-    const dataField = (initJson as { data: unknown }).data;
+    // 5️⃣ Extract event_id
+    const initJson: unknown = await initRes.json();
     let eventId: string;
-    if (typeof dataField === 'string') {
-      eventId = dataField;
-    } else if (Array.isArray(dataField) && typeof dataField[0] === 'string') {
-      eventId = dataField[0];
+    if (
+      typeof initJson === 'object' &&
+      initJson !== null &&
+      'event_id' in initJson &&
+      typeof (initJson as Record<string, unknown>)['event_id'] === 'string'
+    ) {
+      eventId = (initJson as Record<string, string>)['event_id'];
     } else {
       throw new Error(`Could not parse event ID: ${JSON.stringify(initJson)}`);
     }
 
-    // 6) GET the result using EVENT_ID
+    // 6️⃣ GET the result
     const resultRes = await fetch(
       `${HF_SPACE_API_URL}/gradio_api/call/generate_video/${eventId}`
     );
@@ -93,27 +99,27 @@ export async function POST(req: NextRequest) {
       throw new Error(`Result request failed: ${txt}`);
     }
 
-    // 7) Parse the final output
-    const resultRaw = await resultRes.json();
-    if (!Array.isArray(resultRaw)) {
-      throw new Error(`Unexpected result format: ${JSON.stringify(resultRaw)}`);
+    // 7️⃣ Parse the final output
+    const resultJson: unknown = await resultRes.json();
+    if (!Array.isArray(resultJson)) {
+      throw new Error(`Unexpected result format: ${JSON.stringify(resultJson)}`);
     }
-    const entry = resultRaw[0];
+    const entry = resultJson[0];
     let videoUrl: string;
     if (typeof entry === 'string') {
       videoUrl = entry;
     } else if (
-      entry &&
       typeof entry === 'object' &&
+      entry !== null &&
       'video' in entry &&
-      typeof (entry as { video: unknown }).video === 'string'
+      typeof (entry as Record<string, unknown>)['video'] === 'string'
     ) {
-      videoUrl = (entry as { video: string }).video;
+      videoUrl = (entry as Record<string, string>)['video'];
     } else {
       throw new Error(`Unexpected result entry: ${JSON.stringify(entry)}`);
     }
 
-    // 8) Return the video URL to client
+    // 8️⃣ Return to client
     return NextResponse.json({ videoUrl }, { status: 200 });
 
   } catch (error: unknown) {
