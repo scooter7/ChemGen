@@ -9,6 +9,34 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
+import { promisify } from 'util';
+import stream from 'stream';
+
+const pipeline = promisify(stream.pipeline);
+
+/**
+ * Checks for a binary in the /tmp folder. If it doesn't exist, downloads it
+ * from the provided URL and makes it executable.
+ * @param {string} name - The name of the binary (e.g., 'ffmpeg').
+ * @param {string} url - The public URL to download the binary from.
+ * @returns {Promise<string>} The path to the executable binary in /tmp.
+ */
+const ensureBinary = async (name: string, url: string): Promise<string> => {
+    const binaryPath = path.join(os.tmpdir(), name);
+    try {
+        await fs.promises.access(binaryPath, fs.constants.X_OK);
+        return binaryPath; // It exists and is executable
+    } catch (e) {
+        // It doesn't exist or isn't executable, so download it
+        const response = await fetch(url);
+        if (!response.ok || !response.body) {
+            throw new Error(`Failed to download ${name}: ${response.statusText}`);
+        }
+        await pipeline(response.body, fs.createWriteStream(binaryPath));
+        await fs.promises.chmod(binaryPath, '755'); // Make it executable
+        return binaryPath;
+    }
+};
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY,
@@ -31,38 +59,32 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
             modelId: "eleven_multilingual_v2"
         }
     );
-
     const reader = audioStream.getReader();
     const chunks: Uint8Array[] = [];
-
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         if (value) chunks.push(value);
     }
-
     return Buffer.concat(chunks);
 }
 
 export async function POST(req: NextRequest) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
     try {
-        // --- START of FFMPEG PATH LOGIC ---
-        // Construct paths to the binaries located in the project's 'bin' directory
-        const ffmpegPath = path.join(process.cwd(), 'bin/ffmpeg');
-        const ffprobePath = path.join(process.cwd(), 'bin/ffprobe');
+        const ffmpegUrl = process.env.FFMPEG_BINARY_URL;
+        const ffprobeUrl = process.env.FFPROBE_BINARY_URL;
+        if (!ffmpegUrl || !ffprobeUrl) {
+            return NextResponse.json({ error: "FFmpeg/FFprobe binary URLs not configured." }, { status: 500 });
+        }
         
-        // This check is for debugging; fs.existsSync might not be fully reliable in all serverless contexts
-        // but it's good for verification. The key is that the path is now correct.
-        if (!fs.existsSync(ffmpegPath)) {
-             return NextResponse.json({ error: "FFmpeg binary not found at path: " + ffmpegPath }, { status: 500 });
-        }
-        if (!fs.existsSync(ffprobePath)) {
-            return NextResponse.json({ error: "FFprobe binary not found at path: " + ffprobePath }, { status: 500 });
-        }
+        const [ffmpegPath, ffprobePath] = await Promise.all([
+            ensureBinary('ffmpeg', ffmpegUrl),
+            ensureBinary('ffprobe', ffprobeUrl)
+        ]);
         
         ffmpeg.setFfmpegPath(ffmpegPath);
         ffmpeg.setFfprobePath(ffprobePath);
-        // --- END of FFMPEG PATH LOGIC ---
 
         if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
             return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
@@ -73,8 +95,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const userId = session.user.id;
-        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
-
+        
         const body = await req.json() as AudioRequest;
         const { script } = body;
         const lines = script.split('\n').filter(line => line.trim() !== '');
@@ -108,15 +129,9 @@ export async function POST(req: NextRequest) {
         const finalPodcastPath = path.join(tempDir, 'final-podcast.mp3');
 
         await new Promise<void>((resolve, reject) => {
-            const command = ffmpeg();
-            audioFilePaths.forEach(filePath => {
-                command.input(filePath);
-            });
-            command
-                .on('error', (err) => {
-                    console.error('FFMPEG processing error:', err);
-                    reject(new Error(`FFMPEG error: ${err.message}`));
-                })
+            ffmpeg(audioFilePaths[0]) // Start with the first file
+                .input(audioFilePaths.slice(1)) // Add the rest as inputs
+                .on('error', (err) => reject(new Error(`FFMPEG error: ${err.message}`)))
                 .on('end', () => resolve())
                 .mergeToFile(finalPodcastPath, tempDir);
         });
@@ -136,12 +151,13 @@ export async function POST(req: NextRequest) {
 
         const { data: publicUrlData } = supabaseAdmin.storage.from(PODCAST_BUCKET_NAME).getPublicUrl(uploadData.path);
         
-        fs.rmSync(tempDir, { recursive: true, force: true });
         return NextResponse.json({ podcastUrl: publicUrlData.publicUrl }, { status: 200 });
 
     } catch (error) {
         console.error('Error generating podcast audio:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
         return NextResponse.json({ error: errorMessage }, { status: 500 });
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
