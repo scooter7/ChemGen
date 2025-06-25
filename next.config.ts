@@ -1,6 +1,5 @@
 // next.config.ts
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   images: {
@@ -14,11 +13,13 @@ const nextConfig: NextConfig = {
     ],
   },
   
-  // This is the key change to ensure the local binaries are included in the deployment
+  /**
+   * Use the 'standalone' output mode.
+   * This will automatically trace and include all necessary files,
+   * including the ffmpeg and ffprobe binaries from node_modules,
+   * in the final deployment package. This is the most reliable method.
+   */
   output: "standalone",
-  experimental: {
-    outputFileTracingRoot: path.join(__dirname, "../../"),
-  },
 };
 
 export default nextConfig;

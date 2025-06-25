@@ -45,28 +45,33 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
 }
 
 export async function POST(req: NextRequest) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ffmpegStatic = require('ffmpeg-static');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ffprobe = require('ffprobe-static');
+
+    if (!ffmpegStatic) {
+        return NextResponse.json({ error: "ffmpeg-static not found on the server." }, { status: 500 });
+    }
+    ffmpeg.setFfmpegPath(ffmpegStatic);
+
+    if (!ffprobe || !ffprobe.path) {
+        return NextResponse.json({ error: "ffprobe-static not found on the server." }, { status: 500 });
+    }
+    ffmpeg.setFfprobePath(ffprobe.path);
+
+    if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
+        return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
+    }
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = session.user.id;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
+
     try {
-        // --- START of FFMPEG PATH LOGIC ---
-        // Construct paths to the binaries located in the project's 'bin' directory
-        const ffmpegPath = path.join(process.cwd(), 'bin/ffmpeg');
-        const ffprobePath = path.join(process.cwd(), 'bin/ffprobe');
-        
-        // Set the paths for fluent-ffmpeg
-        ffmpeg.setFfmpegPath(ffmpegPath);
-        ffmpeg.setFfprobePath(ffprobePath);
-        // --- END of FFMPEG PATH LOGIC ---
-
-        if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
-            return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
-        }
-
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const userId = session.user.id;
-        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
-
         const body = await req.json() as AudioRequest;
         const { script } = body;
         const lines = script.split('\n').filter(line => line.trim() !== '');
@@ -105,10 +110,7 @@ export async function POST(req: NextRequest) {
                 command.input(filePath);
             });
             command
-                .on('error', (err) => {
-                    console.error('FFMPEG processing error:', err);
-                    reject(new Error(`FFMPEG error: ${err.message}`));
-                })
+                .on('error', (err) => reject(new Error(`FFMPEG error: ${err.message}`)))
                 .on('end', () => resolve())
                 .mergeToFile(finalPodcastPath, tempDir);
         });
@@ -128,12 +130,13 @@ export async function POST(req: NextRequest) {
 
         const { data: publicUrlData } = supabaseAdmin.storage.from(PODCAST_BUCKET_NAME).getPublicUrl(uploadData.path);
         
-        fs.rmSync(tempDir, { recursive: true, force: true });
         return NextResponse.json({ podcastUrl: publicUrlData.publicUrl }, { status: 200 });
 
     } catch (error) {
         console.error('Error generating podcast audio:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
         return NextResponse.json({ error: errorMessage }, { status: 500 });
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
