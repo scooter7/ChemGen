@@ -9,13 +9,20 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static'; // <-- UPDATED IMPORT
+import ffmpegStatic from 'ffmpeg-static';
+import ffprobeInstaller from '@ffprobe-installer/ffprobe'; // <-- ADD THIS IMPORT
 
-// UPDATED FFMPEG PATH SETTING
+// --- START of UPDATED FFMPEG/FFPROBE PATH SETTINGS ---
 if (!ffmpegStatic) {
     throw new Error("ffmpeg-static not found");
 }
 ffmpeg.setFfmpegPath(ffmpegStatic);
+
+if (!ffprobeInstaller.path) {
+    throw new Error("ffprobe-installer not found");
+}
+ffmpeg.setFfprobePath(ffprobeInstaller.path);
+// --- END of UPDATED FFMPEG/FFPROBE PATH SETTINGS ---
 
 
 const elevenlabs = new ElevenLabsClient({
