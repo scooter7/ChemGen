@@ -13,12 +13,10 @@ const nextConfig: NextConfig = {
     ],
   },
   
-  // Add this webpack config to handle the ffmpeg packages
   webpack: (config, { isServer }) => {
-    // This is to prevent Webpack from bundling the ffmpeg-static and
-    // ffprobe-installer packages, which are not designed to be bundled.
     if (isServer) {
-      config.externals = [...config.externals, 'ffmpeg-static', '@ffprobe-installer/ffprobe'];
+      // UPDATED: Replaced the installer package with the static package
+      config.externals = [...config.externals, 'ffmpeg-static', 'ffprobe-static'];
     }
 
     return config;

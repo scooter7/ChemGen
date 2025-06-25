@@ -9,17 +9,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static';
-import ffprobe from '@ffprobe-installer/ffprobe';
-
-// Set the paths for ffmpeg and ffprobe
-// This will now work because of the webpack externals config.
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic);
-}
-if (ffprobe.path) {
-  ffmpeg.setFfprobePath(ffprobe.path);
-}
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY,
@@ -36,27 +25,32 @@ interface AudioRequest {
 
 async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
     const audioStream = await elevenlabs.textToSpeech.stream(
-        voiceId,
-        {
-            text: text,
-            modelId: "eleven_multilingual_v2"
-        }
+        voiceId, { text: text, modelId: "eleven_multilingual_v2" }
     );
-
     const reader = audioStream.getReader();
     const chunks: Uint8Array[] = [];
-
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         if (value) chunks.push(value);
     }
-
     return Buffer.concat(chunks);
 }
 
-
 export async function POST(req: NextRequest) {
+    const ffmpegStatic = require('ffmpeg-static');
+    const ffprobe = require('ffprobe-static'); // UPDATED: require the new package
+
+    if (!ffmpegStatic) {
+        return NextResponse.json({ error: "ffmpeg-static not found on the server." }, { status: 500 });
+    }
+    ffmpeg.setFfmpegPath(ffmpegStatic);
+
+    if (!ffprobe || !ffprobe.path) { // UPDATED: check the path property
+        return NextResponse.json({ error: "ffprobe-static not found on the server." }, { status: 500 });
+    }
+    ffmpeg.setFfprobePath(ffprobe.path); // UPDATED: use the path property
+
     if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
         return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
     }
