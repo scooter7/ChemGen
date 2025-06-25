@@ -13,11 +13,9 @@ const nextConfig: NextConfig = {
     ],
   },
   
-  // This is the key change to ensure the binaries are included in the deployment
-  experimental: {
-    outputFileTracingIncludes: {
-      '/api/generate-podcast-audio': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/ffprobe-static/ffprobe'],
-    },
+  // CORRECTED: Moved from 'experimental' to the top level
+  outputFileTracingIncludes: {
+    '/api/generate-podcast-audio': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/ffprobe-static/ffprobe'],
   },
 };
 
