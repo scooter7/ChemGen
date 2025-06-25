@@ -25,31 +25,40 @@ interface AudioRequest {
 
 async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
     const audioStream = await elevenlabs.textToSpeech.stream(
-        voiceId, { text: text, modelId: "eleven_multilingual_v2" }
+        voiceId,
+        {
+            text: text,
+            modelId: "eleven_multilingual_v2"
+        }
     );
+
     const reader = audioStream.getReader();
     const chunks: Uint8Array[] = [];
+
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         if (value) chunks.push(value);
     }
+
     return Buffer.concat(chunks);
 }
 
 export async function POST(req: NextRequest) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ffmpegStatic = require('ffmpeg-static');
-    const ffprobe = require('ffprobe-static'); // UPDATED: require the new package
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ffprobe = require('ffprobe-static');
 
     if (!ffmpegStatic) {
         return NextResponse.json({ error: "ffmpeg-static not found on the server." }, { status: 500 });
     }
     ffmpeg.setFfmpegPath(ffmpegStatic);
 
-    if (!ffprobe || !ffprobe.path) { // UPDATED: check the path property
+    if (!ffprobe || !ffprobe.path) {
         return NextResponse.json({ error: "ffprobe-static not found on the server." }, { status: 500 });
     }
-    ffmpeg.setFfprobePath(ffprobe.path); // UPDATED: use the path property
+    ffmpeg.setFfprobePath(ffprobe.path);
 
     if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
         return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
