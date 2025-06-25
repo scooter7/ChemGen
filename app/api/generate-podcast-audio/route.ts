@@ -9,9 +9,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import ffmpegStatic from 'ffmpeg-static'; // <-- UPDATED IMPORT
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// UPDATED FFMPEG PATH SETTING
+if (!ffmpegStatic) {
+    throw new Error("ffmpeg-static not found");
+}
+ffmpeg.setFfmpegPath(ffmpegStatic);
+
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY,
@@ -26,7 +31,6 @@ interface AudioRequest {
   script: string;
 }
 
-// THIS FUNCTION IS NOW CORRECTED to use a standard stream reader
 async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
     const audioStream = await elevenlabs.textToSpeech.stream(
         voiceId,
