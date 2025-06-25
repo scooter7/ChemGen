@@ -45,9 +45,7 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
 }
 
 export async function POST(req: NextRequest) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ffmpegStatic = require('ffmpeg-static');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ffprobe = require('ffprobe-static');
 
     if (!ffmpegStatic) {
