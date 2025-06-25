@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
-import { ElevenLabsClient } from 'elevenlabs';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'; // <-- UPDATED IMPORT
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import * as fs from 'fs';
