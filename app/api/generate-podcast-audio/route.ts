@@ -26,9 +26,8 @@ interface AudioRequest {
   script: string;
 }
 
-// THIS FUNCTION IS NOW CORRECTED
+// THIS FUNCTION IS NOW CORRECTED to use a standard stream reader
 async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
-    // Corrected the function call to pass voiceId as the first argument
     const audioStream = await elevenlabs.textToSpeech.stream(
         voiceId,
         {
@@ -37,10 +36,19 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
         }
     );
 
-    const chunks: Buffer[] = [];
-    for await (const chunk of audioStream) {
-        chunks.push(chunk);
+    const reader = audioStream.getReader();
+    const chunks: Uint8Array[] = [];
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+            break;
+        }
+        if (value) {
+            chunks.push(value);
+        }
     }
+
     return Buffer.concat(chunks);
 }
 
@@ -76,7 +84,7 @@ export async function POST(req: NextRequest) {
                 textToSpeak = line.replace('[HOST B]:', '').trim();
             }
             
-            if (textToSpeak) { // Ensure we don't process empty lines
+            if (textToSpeak) {
               const audioBuffer = await textToSpeech(textToSpeak, voiceId);
               const tempFilePath = path.join(tempDir, `segment-${i}.mp3`);
               fs.writeFileSync(tempFilePath, audioBuffer);
@@ -123,7 +131,6 @@ export async function POST(req: NextRequest) {
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     } finally {
-        // Cleanup temp files in a finally block to ensure it always runs
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
