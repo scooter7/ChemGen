@@ -26,13 +26,14 @@ const ensureBinary = async (name: string, url: string): Promise<string> => {
     try {
         await fs.promises.access(binaryPath, fs.constants.X_OK);
         return binaryPath; // It exists and is executable
-    } catch (e) {
+    } catch { // CORRECTED: Removed the unused '(e)'
         // It doesn't exist or isn't executable, so download it
         const response = await fetch(url);
         if (!response.ok || !response.body) {
             throw new Error(`Failed to download ${name}: ${response.statusText}`);
         }
-        await pipeline(response.body, fs.createWriteStream(binaryPath));
+        // The type assertion is necessary because the fetch response body could be null
+        await pipeline(response.body as unknown as NodeJS.ReadableStream, fs.createWriteStream(binaryPath));
         await fs.promises.chmod(binaryPath, '755'); // Make it executable
         return binaryPath;
     }
@@ -129,9 +130,15 @@ export async function POST(req: NextRequest) {
         const finalPodcastPath = path.join(tempDir, 'final-podcast.mp3');
 
         await new Promise<void>((resolve, reject) => {
-            ffmpeg(audioFilePaths[0]) // Start with the first file
-                .input(audioFilePaths.slice(1)) // Add the rest as inputs
-                .on('error', (err) => reject(new Error(`FFMPEG error: ${err.message}`)))
+            const command = ffmpeg();
+            audioFilePaths.forEach(filePath => {
+                command.input(filePath);
+            });
+            command
+                .on('error', (err) => {
+                    console.error('FFMPEG processing error:', err);
+                    reject(new Error(`FFMPEG error: ${err.message}`));
+                })
                 .on('end', () => resolve())
                 .mergeToFile(finalPodcastPath, tempDir);
         });
@@ -151,13 +158,13 @@ export async function POST(req: NextRequest) {
 
         const { data: publicUrlData } = supabaseAdmin.storage.from(PODCAST_BUCKET_NAME).getPublicUrl(uploadData.path);
         
+        fs.rmSync(tempDir, { recursive: true, force: true });
         return NextResponse.json({ podcastUrl: publicUrlData.publicUrl }, { status: 200 });
 
     } catch (error) {
         console.error('Error generating podcast audio:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+        fs.rmSync(tempDir, { recursive: true, force: true }); // Also clean up on error
         return NextResponse.json({ error: errorMessage }, { status: 500 });
-    } finally {
-        fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
