@@ -9,10 +9,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegStatic from 'ffmpeg-static';
-import ffprobeInstaller from '@ffprobe-installer/ffprobe'; // <-- ADD THIS IMPORT
 
-// --- START of UPDATED FFMPEG/FFPROBE PATH SETTINGS ---
+// --- START of UPDATED FFMPEG/FFPROBE REQUIRE ---
+// Use require to avoid Webpack bundling issues with these packages
+const ffmpegStatic = require('ffmpeg-static');
+const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+
 if (!ffmpegStatic) {
     throw new Error("ffmpeg-static not found");
 }
@@ -22,7 +24,7 @@ if (!ffprobeInstaller.path) {
     throw new Error("ffprobe-installer not found");
 }
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
-// --- END of UPDATED FFMPEG/FFPROBE PATH SETTINGS ---
+// --- END of UPDATED FFMPEG/FFPROBE REQUIRE ---
 
 
 const elevenlabs = new ElevenLabsClient({
