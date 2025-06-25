@@ -1,5 +1,6 @@
 // next.config.ts
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   images: {
@@ -13,9 +14,10 @@ const nextConfig: NextConfig = {
     ],
   },
   
-  // CORRECTED: Moved from 'experimental' to the top level
-  outputFileTracingIncludes: {
-    '/api/generate-podcast-audio': ['./node_modules/ffmpeg-static/ffmpeg', './node_modules/ffprobe-static/ffprobe'],
+  // This is the key change to ensure the local binaries are included in the deployment
+  output: "standalone",
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, "../../"),
   },
 };
 
