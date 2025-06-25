@@ -1,19 +1,27 @@
-// next.config.mjs (or next.config.js if your project uses that extension for ESM)
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* existing config options here, if any */
-  
   images: {
     remotePatterns: [
       {
-        protocol: 'https', // Supabase storage URLs are typically HTTPS
-        hostname: 'fuwufnydpnwubneipbzk.supabase.co', // Your specific Supabase project hostname
-        port: '', // Default for HTTPS (443)
-        pathname: '/storage/v1/object/public/**', // Allows images from any public bucket and path
+        protocol: 'https',
+        hostname: 'fuwufnydpnwubneipbzk.supabase.co',
+        port: '',
+        pathname: '/storage/v1/object/public/**',
       },
-      // You can add more patterns here if you have other external image sources
     ],
+  },
+  
+  // Add this webpack config to handle the ffmpeg packages
+  webpack: (config, { isServer }) => {
+    // This is to prevent Webpack from bundling the ffmpeg-static and
+    // ffprobe-installer packages, which are not designed to be bundled.
+    if (isServer) {
+      config.externals = [...config.externals, 'ffmpeg-static', '@ffprobe-installer/ffprobe'];
+    }
+
+    return config;
   },
 };
 

@@ -9,8 +9,17 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegStatic from 'ffmpeg-static';
+import ffprobe from '@ffprobe-installer/ffprobe';
 
-// NOTE: We have removed the ffmpeg and ffprobe imports/requires from the top level.
+// Set the paths for ffmpeg and ffprobe
+// This will now work because of the webpack externals config.
+if (ffmpegStatic) {
+  ffmpeg.setFfmpegPath(ffmpegStatic);
+}
+if (ffprobe.path) {
+  ffmpeg.setFfprobePath(ffprobe.path);
+}
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY,
@@ -39,12 +48,8 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
 
     while (true) {
         const { done, value } = await reader.read();
-        if (done) {
-            break;
-        }
-        if (value) {
-            chunks.push(value);
-        }
+        if (done) break;
+        if (value) chunks.push(value);
     }
 
     return Buffer.concat(chunks);
@@ -52,22 +57,6 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
 
 
 export async function POST(req: NextRequest) {
-    // --- START of MOVED FFMPEG/FFPROBE LOGIC ---
-    // This logic is now inside the handler to run at runtime, not build time.
-    const ffmpegStatic = require('ffmpeg-static');
-    const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
-
-    if (!ffmpegStatic) {
-        return NextResponse.json({ error: "ffmpeg-static not found on the server." }, { status: 500 });
-    }
-    ffmpeg.setFfmpegPath(ffmpegStatic);
-
-    if (!ffprobeInstaller.path) {
-        return NextResponse.json({ error: "ffprobe-installer not found on the server." }, { status: 500 });
-    }
-    ffmpeg.setFfprobePath(ffprobeInstaller.path);
-    // --- END of MOVED FFMPEG/FFPROBE LOGIC ---
-
     if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
         return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
     }
