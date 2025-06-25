@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
-import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'; // <-- UPDATED IMPORT
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import * as fs from 'fs';
@@ -26,14 +26,16 @@ interface AudioRequest {
   script: string;
 }
 
+// THIS FUNCTION IS NOW CORRECTED
 async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
-    const audio = await elevenlabs.generate({
-        voice: voiceId,
-        text,
-        model_id: "eleven_multilingual_v2"
+    const audioStream = await elevenlabs.textToSpeech.stream({
+        voiceId: voiceId,
+        text: text,
+        modelId: "eleven_multilingual_v2"
     });
+
     const chunks: Buffer[] = [];
-    for await (const chunk of audio) {
+    for await (const chunk of audioStream) {
         chunks.push(chunk);
     }
     return Buffer.concat(chunks);
@@ -55,11 +57,11 @@ export async function POST(req: NextRequest) {
         const body = await req.json() as AudioRequest;
         const { script } = body;
         const lines = script.split('\n').filter(line => line.trim() !== '');
-        const audioBuffers: { path: string, duration: number }[] = [];
         const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
-        let fileIndex = 0;
+        const audioFilePaths: string[] = [];
 
-        for (const line of lines) {
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
             let voiceId = process.env.VOICE_1_ID!;
             let textToSpeak = line;
 
@@ -72,17 +74,17 @@ export async function POST(req: NextRequest) {
             }
             
             const audioBuffer = await textToSpeech(textToSpeak, voiceId);
-            const tempFilePath = path.join(tempDir, `segment-${fileIndex++}.mp3`);
+            const tempFilePath = path.join(tempDir, `segment-${i}.mp3`);
             fs.writeFileSync(tempFilePath, audioBuffer);
-            audioBuffers.push({ path: tempFilePath, duration: 0 }); // duration can be calculated if needed
+            audioFilePaths.push(tempFilePath);
         }
 
         const finalPodcastPath = path.join(tempDir, 'final-podcast.mp3');
 
         await new Promise<void>((resolve, reject) => {
             const command = ffmpeg();
-            audioBuffers.forEach(buffer => {
-                command.input(buffer.path);
+            audioFilePaths.forEach(filePath => {
+                command.input(filePath);
             });
             command
                 .on('error', (err) => reject(new Error(`FFMPEG error: ${err.message}`)))
