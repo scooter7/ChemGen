@@ -28,11 +28,14 @@ interface AudioRequest {
 
 // THIS FUNCTION IS NOW CORRECTED
 async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
-    const audioStream = await elevenlabs.textToSpeech.stream({
-        voiceId: voiceId,
-        text: text,
-        modelId: "eleven_multilingual_v2"
-    });
+    // Corrected the function call to pass voiceId as the first argument
+    const audioStream = await elevenlabs.textToSpeech.stream(
+        voiceId,
+        {
+            text: text,
+            modelId: "eleven_multilingual_v2"
+        }
+    );
 
     const chunks: Buffer[] = [];
     for await (const chunk of audioStream) {
@@ -52,12 +55,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = session.user.id;
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
 
     try {
         const body = await req.json() as AudioRequest;
         const { script } = body;
         const lines = script.split('\n').filter(line => line.trim() !== '');
-        const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podcast-'));
         const audioFilePaths: string[] = [];
 
         for (let i = 0; i < lines.length; i++) {
@@ -73,10 +76,16 @@ export async function POST(req: NextRequest) {
                 textToSpeak = line.replace('[HOST B]:', '').trim();
             }
             
-            const audioBuffer = await textToSpeech(textToSpeak, voiceId);
-            const tempFilePath = path.join(tempDir, `segment-${i}.mp3`);
-            fs.writeFileSync(tempFilePath, audioBuffer);
-            audioFilePaths.push(tempFilePath);
+            if (textToSpeak) { // Ensure we don't process empty lines
+              const audioBuffer = await textToSpeech(textToSpeak, voiceId);
+              const tempFilePath = path.join(tempDir, `segment-${i}.mp3`);
+              fs.writeFileSync(tempFilePath, audioBuffer);
+              audioFilePaths.push(tempFilePath);
+            }
+        }
+
+        if (audioFilePaths.length === 0) {
+            throw new Error("No audio could be generated from the provided script.");
         }
 
         const finalPodcastPath = path.join(tempDir, 'final-podcast.mp3');
@@ -107,14 +116,14 @@ export async function POST(req: NextRequest) {
 
         const { data: publicUrlData } = supabaseAdmin.storage.from(PODCAST_BUCKET_NAME).getPublicUrl(uploadData.path);
         
-        // Cleanup temp files
-        fs.rmSync(tempDir, { recursive: true, force: true });
-
         return NextResponse.json({ podcastUrl: publicUrlData.publicUrl }, { status: 200 });
 
     } catch (error) {
         console.error('Error generating podcast audio:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
         return NextResponse.json({ error: errorMessage }, { status: 500 });
+    } finally {
+        // Cleanup temp files in a finally block to ensure it always runs
+        fs.rmSync(tempDir, { recursive: true, force: true });
     }
 }
