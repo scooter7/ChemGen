@@ -10,22 +10,7 @@ import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 
-// --- START of UPDATED FFMPEG/FFPROBE REQUIRE ---
-// Use require to avoid Webpack bundling issues with these packages
-const ffmpegStatic = require('ffmpeg-static');
-const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
-
-if (!ffmpegStatic) {
-    throw new Error("ffmpeg-static not found");
-}
-ffmpeg.setFfmpegPath(ffmpegStatic);
-
-if (!ffprobeInstaller.path) {
-    throw new Error("ffprobe-installer not found");
-}
-ffmpeg.setFfprobePath(ffprobeInstaller.path);
-// --- END of UPDATED FFMPEG/FFPROBE REQUIRE ---
-
+// NOTE: We have removed the ffmpeg and ffprobe imports/requires from the top level.
 
 const elevenlabs = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY,
@@ -67,6 +52,22 @@ async function textToSpeech(text: string, voiceId: string): Promise<Buffer> {
 
 
 export async function POST(req: NextRequest) {
+    // --- START of MOVED FFMPEG/FFPROBE LOGIC ---
+    // This logic is now inside the handler to run at runtime, not build time.
+    const ffmpegStatic = require('ffmpeg-static');
+    const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+
+    if (!ffmpegStatic) {
+        return NextResponse.json({ error: "ffmpeg-static not found on the server." }, { status: 500 });
+    }
+    ffmpeg.setFfmpegPath(ffmpegStatic);
+
+    if (!ffprobeInstaller.path) {
+        return NextResponse.json({ error: "ffprobe-installer not found on the server." }, { status: 500 });
+    }
+    ffmpeg.setFfprobePath(ffprobeInstaller.path);
+    // --- END of MOVED FFMPEG/FFPROBE LOGIC ---
+
     if (!process.env.ELEVENLABS_API_KEY || !process.env.VOICE_1_ID || !process.env.VOICE_2_ID) {
         return NextResponse.json({ error: 'TTS service is not configured.' }, { status: 500 });
     }
