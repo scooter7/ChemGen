@@ -36,8 +36,7 @@ import {
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
-import ArchetypeRefinementModal from "./ArchetypeRefinementModal";
-import { samfordClientArchetypes } from "./archetypeData";
+import { samfordClientArchetypes, type Archetype } from "./archetypeData";
 
 // Interfaces
 interface FormData {
@@ -127,7 +126,7 @@ export default function ContentCreationForm() {
         archetypesToUse.find(
           (a) =>
             a.name === "Established Leader" &&
-            (refinements[a.name] || 0) + diff >= 0
+            (refinEMENTS[a.name] || 0) + diff >= 0
         ) ||
         archetypesToUse.find(
           (a) =>
@@ -205,8 +204,6 @@ export default function ContentCreationForm() {
   const [uploadStatusMessage, setUploadStatusMessage] = useState<
     string | null
   >(null);
-  const [showArchetypeRefinementModal, setShowArchetypeRefinementModal] =
-    useState(false);
   const [imageRecommendations, setImageRecommendations] = useState<
     RecommendedImage[] | null
   >(null);
@@ -233,6 +230,48 @@ export default function ContentCreationForm() {
   const [editedSegmentedContent, setEditedSegmentedContent] = useState<
     Record<string, string>
   >({});
+
+  // States and handlers from former ArchetypeRefinementModal
+  const [panelRefinements, setPanelRefinements] = useState<Record<string, number>>(formData.archetypeRefinements || {});
+
+  useEffect(() => {
+    setPanelRefinements(formData.archetypeRefinements || initializeArchetypeRefinements());
+  }, [formData.archetypeRefinements]);
+
+  const handlePanelSliderChange = (archetypeName: string, value: number) => {
+    setPanelRefinements(prev => ({ ...prev, [archetypeName]: value }));
+  };
+
+  const handlePanelTextChange = (archetypeName: string, textValue: string) => {
+    let value = parseInt(textValue, 10);
+    if (isNaN(value) || textValue.trim() === "") {
+      value = 0; 
+    }
+    value = Math.max(0, Math.min(100, value));
+    setPanelRefinements(prev => ({ ...prev, [archetypeName]: value }));
+  };
+
+  const handleApplyPanelRefinements = () => {
+    handleApplyArchetypeRefinements(panelRefinements);
+    setGeneralStatusMessage({ type: 'success', text: 'Archetype mix applied!' });
+    setTimeout(() => setGeneralStatusMessage(null), 3000);
+  };
+
+  const handleResetPanelToEvenDistribution = () => {
+    const numArchetypes = samfordClientArchetypes.length;
+    if (numArchetypes === 0) return;
+
+    const evenSplit = Math.floor(100 / numArchetypes);
+    const remainder = 100 % numArchetypes;
+    
+    const newRefinements: Record<string, number> = {};
+    samfordClientArchetypes.forEach((arch, index) => {
+      newRefinements[arch.name] = evenSplit + (index < remainder ? 1 : 0);
+    });
+    setPanelRefinements(newRefinements);
+  };
+
+  const totalPanelPercentage = Object.values(panelRefinements || {}).reduce((sum, val) => sum + (Number(val) || 0), 0);
 
   useEffect(() => {
     if (generatedData?.generatedText) {
@@ -872,7 +911,7 @@ export default function ContentCreationForm() {
                 rows={3}
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                className="block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+                className="block w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                 placeholder="e.g., 'Make it more concise', 'Add a call to action to visit our website', 'Change the tone to be more formal'"
             />
             <div className="flex justify-end space-x-3">
@@ -896,283 +935,333 @@ export default function ContentCreationForm() {
   return (
     <div className="bg-white dark:bg-gray-800 p-6 md:p-8 shadow-xl rounded-lg">
       <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mb-6">
-        Hi, what do you want to say?
+        Hi, what do you want to create?
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <LabelWithIcons label="Audience" htmlFor="audience" icon={Users} />
-          <select
-            id="audience"
-            name="audience"
-            value={formData.audience || ""}
-            onChange={handleChange}
-            required
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
-            <option value="">Select Audience</option>
-            {audienceOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8">
+            {/* ----- LEFT COLUMN ----- */}
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <LabelWithIcons label="Audience" htmlFor="audience" icon={Users} />
+                        <select
+                            id="audience"
+                            name="audience"
+                            value={formData.audience || ""}
+                            onChange={handleChange}
+                            required
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        >
+                            <option value="">Select Audience</option>
+                            {audienceOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                                {opt}
+                            </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <LabelWithIcons label="Media Type" htmlFor="mediaType" icon={Type} />
+                        <select
+                            id="mediaType"
+                            name="mediaType"
+                            value={formData.mediaType || ""}
+                            onChange={handleChange}
+                            required
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        >
+                            <option value="">Select Media Type</option>
+                            {mediaTypeOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                                {opt}
+                            </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <LabelWithIcons label="Text Count" htmlFor="textCount" icon={Hash} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <input
+                        type="number"
+                        id="textCount"
+                        name="textCount"
+                        value={formData.textCount || 0}
+                        onChange={handleTextCountChange}
+                        min={0}
+                        className="mt-1 block w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+                        placeholder="100"
+                        />
+                        <select
+                        id="textCountUnit"
+                        name="textCountUnit"
+                        value={formData.textCountUnit || "characters"}
+                        onChange={handleTextCountUnitChange}
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        >
+                        {textCountUnitOptions.map((opt) => (
+                            <option key={opt} value={opt}>
+                            {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                            </option>
+                        ))}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <LabelWithIcons
+                        label="Prompt (include instructions and purpose)"
+                        htmlFor="prompt"
+                        icon={MessageSquareText}
+                    />
+                    <textarea
+                        id="prompt"
+                        name="prompt"
+                        rows={4}
+                        value={formData.prompt || ""}
+                        onChange={handleChange}
+                        className="mt-1 block w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+                        placeholder="Create a virtual admissions event email..."
+                        required
+                    />
+                    <div className="mt-3 flex flex-wrap items-start gap-3">
+                        <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelectForUpload}
+                        className="hidden"
+                        accept="application/pdf,.doc,.docx,.txt,.md"
+                        />
+                        <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                        <Paperclip size={16} className="mr-2" /> Attach Source File
+                        </button>
+                        <button
+                        type="button"
+                        className="flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                        <FolderSearch size={16} className="mr-2" /> Browse Prompts
+                        </button>
+                        {selectedFileForUpload && (
+                        <div className="w-full mt-2 p-3 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-md space-y-2 bg-indigo-50 dark:bg-indigo-900/30">
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                            Selected:{" "}
+                            <span className="font-medium">
+                                {selectedFileForUpload.name}
+                            </span>{" "}
+                            ({(selectedFileForUpload.size / 1024).toFixed(2)} KB)
+                            </p>
+                            <input
+                            type="text"
+                            placeholder="Optional: File description"
+                            value={fileDescription}
+                            onChange={(e) => setFileDescription(e.target.value)}
+                            className="block w-full px-3 py-1.5 text-sm border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white"
+                            />
+                            <button
+                            type="button"
+                            onClick={handleSourceMaterialUpload}
+                            disabled={isUploadingSourceMaterial}
+                            className="flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-60"
+                            >
+                            <UploadCloud size={16} className="mr-2" />
+                            {isUploadingSourceMaterial
+                                ? "Uploading..."
+                                : "Upload Selected File"}
+                            </button>
+                        </div>
+                        )}
+                        {uploadStatusMessage && (
+                        <p
+                            className={`w-full mt-2 text-sm font-medium p-2 rounded-md ${
+                            uploadStatusMessage.startsWith("Error:")
+                                ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                : uploadStatusMessage.startsWith("Success:")
+                                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                            }`}
+                        >
+                            {uploadStatusMessage}
+                        </p>
+                        )}
+                    </div>
+                </div>
+
+                <div>
+                    <LabelWithIcons
+                        label="Reference Source Material(s)"
+                        htmlFor="sourceMaterials"
+                        icon={Tags}
+                    />
+                    <div className="flex flex-wrap gap-2 my-2 min-h-[20px]">
+                        {formData.sourceMaterials?.map((materialName) => (
+                        <span
+                            key={materialName}
+                            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300"
+                        >
+                            {materialName}
+                            <button
+                            type="button"
+                            onClick={() => handleRemoveSourceMaterial(materialName)}
+                            className="ml-1.5 flex-shrink-0 text-indigo-500 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-100 focus:outline-none rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-700 p-0.5"
+                            aria-label={`Remove ${materialName}`}
+                            >
+                            <span className="sr-only">Remove</span> ×
+                            </button>
+                        </span>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 w-full">
+                        <select
+                        id="selectMaterialToAdd"
+                        value={selectedMaterialToAdd}
+                        onChange={(e) => setSelectedMaterialToAdd(e.target.value)}
+                        disabled={isLoadingAvailableMaterials}
+                        className="flex-grow mt-1 block w-full pl-3 pr-10 py-2 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                        >
+                        <option value="">
+                            {isLoadingAvailableMaterials
+                            ? "Loading materials..."
+                            : "-- Select an existing material --"}
+                        </option>
+                        {availableMaterials.map((material) => (
+                            <option key={material.id} value={material.id}>
+                            {material.fileName} ({material.status})
+                            </option>
+                        ))}
+                        </select>
+                        <button
+                        type="button"
+                        onClick={handleAddSelectedMaterialToForm}
+                        disabled={!selectedMaterialToAdd || isLoadingAvailableMaterials}
+                        className="mt-1 flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                        title="Add selected material to references"
+                        >
+                        <PlusCircle size={16} className="mr-1.5" /> Add Selected
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3 w-full">
+                        <input
+                        type="text"
+                        value={currentSourceMaterialText}
+                        onChange={(e) => setCurrentSourceMaterialText(e.target.value)}
+                        placeholder="Or add custom reference tag..."
+                        className="flex-grow px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleAddCustomMaterialTag();
+                            }
+                        }}
+                        />
+                        <button
+                        type="button"
+                        onClick={handleAddCustomMaterialTag}
+                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                        >
+                        Add Tag
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* ----- RIGHT COLUMN ----- */}
+            <div className="space-y-6">
+                <div>
+                    <LabelWithIcons
+                        label="Dominant Brand Archetype"
+                        htmlFor="dominantArchetype"
+                        icon={Aperture}
+                    />
+                    <select
+                        id="dominantArchetype"
+                        name="dominantArchetype"
+                        value={formData.dominantArchetype || ""}
+                        onChange={handleChange}
+                        required
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-2 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                    >
+                        <option value="">Select Dominant Archetype</option>
+                        {archetypeOptionsForDropdown.map((name) => (
+                        <option key={name} value={name}>
+                            {name}
+                        </option>
+                        ))}
+                    </select>
+                </div>
+                
+                {/* Embedded Archetype Panel */}
+                <div className="bg-slate-50 dark:bg-gray-800/50 p-4 rounded-lg shadow-inner border border-gray-200 dark:border-gray-700 space-y-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Archetype Refinement</h3>
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                        {samfordClientArchetypes.map(archetype => (
+                            <div key={archetype.name} className="space-y-2 p-1">
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center">
+                                <span 
+                                    className="w-4 h-4 rounded-full mr-2.5 flex-shrink-0 border border-gray-300 dark:border-gray-600" 
+                                    style={{ backgroundColor: archetype.color || '#E0E0E0' }}
+                                    title={archetype.name}
+                                ></span>
+                                <label htmlFor={`text-${archetype.name.replace(/\s+/g, '-')}`} className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                    {archetype.name}
+                                </label>
+                                </div>
+                                <input
+                                id={`text-${archetype.name.replace(/\s+/g, '-')}`}
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={panelRefinements[archetype.name] !== undefined ? panelRefinements[archetype.name] : ''}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) => handlePanelTextChange(archetype.name, e.target.value)}
+                                onFocus={(e) => e.target.select()}
+                                className="w-20 text-sm font-semibold p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-center bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                            </div>
+                            <input
+                                id={`slider-${archetype.name.replace(/\s+/g, '-')}`}
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={panelRefinements[archetype.name] || 0}
+                                onChange={(e: ChangeEvent<HTMLInputElement>) => handlePanelSliderChange(archetype.name, parseInt(e.target.value, 10))}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-600 slider-thumb"
+                                style={{'--slider-thumb-color': archetype.color} as React.CSSProperties}
+                            />
+                            </div>
+                        ))}
+                    </div>
+                    <div className={`text-sm font-medium text-center py-2 px-3 rounded-md transition-colors ${totalPanelPercentage === 100 ? 'bg-green-100 dark:bg-green-800/40 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-800/40 text-red-700 dark:text-red-300'}`}>
+                        Total: {totalPanelPercentage}% {totalPanelPercentage !== 100 && "(Must be 100%)"}
+                    </div>
+                    <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3 sm:space-y-0">
+                        <button
+                            onClick={handleResetPanelToEvenDistribution}
+                            type="button"
+                            className="w-full sm:w-auto order-last sm:order-first px-4 py-2 text-sm border border-gray-300 dark:border-gray-500 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+                        >
+                            Distribute Evenly
+                        </button>
+                        <button
+                            onClick={handleApplyPanelRefinements}
+                            type="button"
+                            disabled={totalPanelPercentage !== 100}
+                            className="w-full sm:w-auto flex-grow sm:flex-grow-0 px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md shadow-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+                        >
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div>
-          <LabelWithIcons label="Media Type" htmlFor="mediaType" icon={Type} />
-          <select
-            id="mediaType"
-            name="mediaType"
-            value={formData.mediaType || ""}
-            onChange={handleChange}
-            required
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-          >
-            <option value="">Select Media Type</option>
-            {mediaTypeOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <LabelWithIcons label="Text Count" htmlFor="textCount" icon={Hash} />
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              type="number"
-              id="textCount"
-              name="textCount"
-              value={formData.textCount || 0}
-              onChange={handleTextCountChange}
-              min={0}
-              className="mt-1 block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-              placeholder="100"
-            />
-            <select
-              id="textCountUnit"
-              name="textCountUnit"
-              value={formData.textCountUnit || "characters"}
-              onChange={handleTextCountUnitChange}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-            >
-              {textCountUnitOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt.charAt(0).toUpperCase() + opt.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <LabelWithIcons
-            label="Dominant Brand Archetype"
-            htmlFor="dominantArchetype"
-            icon={Aperture}
-          />
-          <div className="flex items-center space-x-3">
-            <select
-              id="dominantArchetype"
-              name="dominantArchetype"
-              value={formData.dominantArchetype || ""}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-            >
-              <option value="">Select Dominant Archetype</option>
-              {archetypeOptionsForDropdown.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setShowArchetypeRefinementModal(true)}
-              className="mt-1 flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
-            >
-              <Settings2 size={16} className="mr-2 flex-shrink-0" /> Refine
-            </button>
-          </div>
-          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-2 gap-y-1">
-            {formData.archetypeRefinements &&
-              Object.entries(formData.archetypeRefinements)
-                .filter(([, percentage]) => percentage > 0)
-                .sort(([, a], [, b]) => b - a)
-                .map(([name, percentage]) => (
-                  <span
-                    key={name}
-                    className="inline-block bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-200"
-                  >
-                    {name}: {percentage}%
-                  </span>
-                ))}
-          </div>
-        </div>
-
-        <div>
-          <LabelWithIcons
-            label="Prompt (include instructions and purpose)"
-            htmlFor="prompt"
-            icon={MessageSquareText}
-          />
-          <textarea
-            id="prompt"
-            name="prompt"
-            rows={4}
-            value={formData.prompt || ""}
-            onChange={handleChange}
-            className="mt-1 block w-full px-3 py-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-            placeholder="Create a virtual admissions event email..."
-            required
-          />
-          <div className="mt-3 flex flex-wrap items-start gap-3">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelectForUpload}
-              className="hidden"
-              accept="application/pdf,.doc,.docx,.txt,.md"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <Paperclip size={16} className="mr-2" /> Attach Source File
-            </button>
-            <button
-              type="button"
-              className="flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <FolderSearch size={16} className="mr-2" /> Browse Prompts
-            </button>
-            {selectedFileForUpload && (
-              <div className="w-full mt-2 p-3 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-md space-y-2 bg-indigo-50 dark:bg-indigo-900/30">
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  Selected:{" "}
-                  <span className="font-medium">
-                    {selectedFileForUpload.name}
-                  </span>{" "}
-                  ({(selectedFileForUpload.size / 1024).toFixed(2)} KB)
-                </p>
-                <input
-                  type="text"
-                  placeholder="Optional: File description"
-                  value={fileDescription}
-                  onChange={(e) => setFileDescription(e.target.value)}
-                  className="block w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white"
-                />
-                <button
-                  type="button"
-                  onClick={handleSourceMaterialUpload}
-                  disabled={isUploadingSourceMaterial}
-                  className="flex items-center justify-center w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md disabled:opacity-60"
-                >
-                  <UploadCloud size={16} className="mr-2" />
-                  {isUploadingSourceMaterial
-                    ? "Uploading..."
-                    : "Upload Selected File"}
-                </button>
-              </div>
-            )}
-            {uploadStatusMessage && (
-              <p
-                className={`w-full mt-2 text-sm font-medium p-2 rounded-md ${
-                  uploadStatusMessage.startsWith("Error:")
-                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                    : uploadStatusMessage.startsWith("Success:")
-                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                    : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                }`}
-              >
-                {uploadStatusMessage}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <LabelWithIcons
-            label="Reference Source Material(s)"
-            htmlFor="sourceMaterials"
-            icon={Tags}
-          />
-          <div className="flex flex-wrap gap-2 my-2 min-h-[20px]">
-            {formData.sourceMaterials?.map((materialName) => (
-              <span
-                key={materialName}
-                className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300"
-              >
-                {materialName}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveSourceMaterial(materialName)}
-                  className="ml-1.5 flex-shrink-0 text-indigo-500 hover:text-indigo-700 dark:text-indigo-300 dark:hover:text-indigo-100 focus:outline-none rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-700 p-0.5"
-                  aria-label={`Remove ${materialName}`}
-                >
-                  <span className="sr-only">Remove</span> ×
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 mt-1 w-full">
-            <select
-              id="selectMaterialToAdd"
-              value={selectedMaterialToAdd}
-              onChange={(e) => setSelectedMaterialToAdd(e.target.value)}
-              disabled={isLoadingAvailableMaterials}
-              className="flex-grow mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-            >
-              <option value="">
-                {isLoadingAvailableMaterials
-                  ? "Loading materials..."
-                  : "-- Select an existing material --"}
-              </option>
-              {availableMaterials.map((material) => (
-                <option key={material.id} value={material.id}>
-                  {material.fileName} ({material.status})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleAddSelectedMaterialToForm}
-              disabled={!selectedMaterialToAdd || isLoadingAvailableMaterials}
-              className="mt-1 flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-              title="Add selected material to references"
-            >
-              <PlusCircle size={16} className="mr-1.5" /> Add Selected
-            </button>
-          </div>
-          <div className="flex items-center gap-2 mt-3 w-full">
-            <input
-              type="text"
-              value={currentSourceMaterialText}
-              onChange={(e) => setCurrentSourceMaterialText(e.target.value)}
-              placeholder="Or add custom reference tag..."
-              className="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  handleAddCustomMaterialTag();
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={handleAddCustomMaterialTag}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-            >
-              Add Tag
-            </button>
-          </div>
-        </div>
-
-        <div className="flex justify-end space-x-3 pt-4">
+        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
             type="button"
             onClick={resetForm}
@@ -1193,14 +1282,6 @@ export default function ContentCreationForm() {
           </button>
         </div>
       </form>
-
-      <ArchetypeRefinementModal
-        isOpen={showArchetypeRefinementModal}
-        onClose={() => setShowArchetypeRefinementModal(false)}
-        definedArchetypes={samfordClientArchetypes}
-        currentRefinements={formData.archetypeRefinements || {}}
-        onApplyRefinements={handleApplyArchetypeRefinements}
-      />
 
       {apiError && (
         <div className="mt-8 p-4 border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-900/30 rounded-lg shadow">
@@ -1262,7 +1343,7 @@ export default function ContentCreationForm() {
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3 flex items-center"><Layers size={20} className="mr-2 text-indigo-600 dark:text-indigo-400" />Create Version Segmentations<Info size={14} className="ml-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer" onClick={() => alert('Define segments (e.g., "In-State", "Out-of-State", "Athlete") to generate tailored versions of the content above.')}/></h3>
             <div className="mb-3">
               <label htmlFor="segmentationInput" className="sr-only">Add segment tags (comma-separated)</label>
-              <input type="text" id="segmentationInput" value={segmentationInput} onChange={handleSegmentationInputChange} onKeyDown={handleSegmentationInputKeyDown} placeholder="Type segment(s), press Enter or comma to add..." className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"/>
+              <input type="text" id="segmentationInput" value={segmentationInput} onChange={handleSegmentationInputChange} onKeyDown={handleSegmentationInputKeyDown} placeholder="Type segment(s), press Enter or comma to add..." className="mt-1 block w-full px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:text-white"/>
             </div>
             {activeSegmentationTags.length > 0 && (<div className="flex flex-wrap gap-2 mb-3">{activeSegmentationTags.map((tag) => (<span key={tag} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300">{tag}<button type="button" onClick={() => removeSegmentationTag(tag)} className="ml-1.5 flex-shrink-0 text-sky-500 hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-100 focus:outline-none rounded-full hover:bg-sky-200 dark:hover:bg-sky-700 p-0.5" aria-label={`Remove ${tag}`}><span className="sr-only">Remove</span>×</button></span>))}</div>)}
             <button type="button" onClick={handleGenerateSegmentedContent} disabled={isLoadingSegments || activeSegmentationTags.length === 0} className="w-full sm:w-auto flex items-center justify-center px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-md shadow-sm disabled:opacity-60">{isLoadingSegments ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Segments...</>) : ("Generate Segmented Content")}</button>
