@@ -10,7 +10,7 @@ import {
   UserCircle2,
   Image as ImageIconLucide,
   Video,
-  Mic, // <-- ADDED
+  Mic,
 } from 'lucide-react';
 
 const navItems = [
@@ -19,7 +19,7 @@ const navItems = [
   { href: '/brand-materials', label: 'Brand Materials', icon: FileText },
   { href: '/image-library', label: 'Image Library', icon: ImageIconLucide },
   { href: '/video-generator', label: 'Video Generator', icon: Video },
-  { href: '/podcast-generator', label: 'Podcast Generator', icon: Mic }, // <-- ADDED
+  { href: '/podcast-generator', label: 'Podcast Generator', icon: Mic },
   { href: '/profile', label: 'My Profile', icon: UserCircle2 },
 ];
 
@@ -27,15 +27,13 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-16 hover:w-64 transition-all duration-300 ease-in-out bg-slate-800 text-slate-100 p-3 space-y-6 hidden md:flex md:flex-col group">
-      <div className="py-3 border-b border-slate-700">
-        <Link
-          href="/dashboard"
-          className="flex items-center h-10 justify-center group-hover:justify-start group-hover:px-1"
-        >
+    <aside className="w-64 bg-slate-800 text-slate-100 p-3 space-y-6 hidden md:flex md:flex-col">
+      <div className="pb-3 border-b border-slate-700">
+        <Link href="/dashboard" className="block">
           <img
             src="/michaelailogo.png"
             alt="ChemGen logo"
+            className="w-full h-auto"
           />
         </Link>
       </div>
@@ -45,26 +43,23 @@ export default function Sidebar() {
             <li key={item.label}>
               <Link
                 href={item.href}
-                className={`flex items-center p-3 rounded-md hover:bg-slate-700 transition-colors \
-                            justify-center group-hover:justify-start group-hover:space-x-3\
-                            ${pathname === item.href ? 'bg-slate-900 text-white font-semibold' : 'text-slate-300 hover:text-white'}`}
+                className={`flex items-center p-3 rounded-md hover:bg-slate-700 transition-colors space-x-3 ${
+                  pathname === item.href
+                    ? 'bg-slate-900 text-white font-semibold'
+                    : 'text-slate-300 hover:text-white'
+                }`}
                 title={item.label}
               >
                 <item.icon size={20} className="flex-shrink-0" />
-                <span className="hidden group-hover:inline whitespace-nowrap">
-                  {item.label}
-                </span>
+                <span className="whitespace-nowrap">{item.label}</span>
               </Link>
             </li>
           ))}
         </ul>
       </nav>
       <div className="mt-auto pb-2 border-t border-slate-700 pt-3">
-        <p className="text-xs text-slate-400 text-center hidden group-hover:block">
+        <p className="text-xs text-slate-400 text-center">
           &copy; {new Date().getFullYear()}
-        </p>
-         <p className="text-xs text-slate-400 text-center group-hover:hidden">
-          &copy;
         </p>
       </div>
     </aside>
