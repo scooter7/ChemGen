@@ -9,8 +9,6 @@ import {
   FileText,
   UserCircle2,
   Image as ImageIconLucide,
-  Video,
-  Mic,
 } from 'lucide-react';
 
 const navItems = [
@@ -18,8 +16,6 @@ const navItems = [
   { href: '/history', label: 'History', icon: History },
   { href: '/brand-materials', label: 'Brand Materials', icon: FileText },
   { href: '/image-library', label: 'Image Library', icon: ImageIconLucide },
-  { href: '/video-generator', label: 'Video Generator', icon: Video },
-  { href: '/podcast-generator', label: 'Podcast Generator', icon: Mic },
   { href: '/profile', label: 'My Profile', icon: UserCircle2 },
 ];
 
