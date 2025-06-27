@@ -19,7 +19,6 @@ import {
   FolderSearch,
   Info,
   RefreshCcw,
-  Settings2,
   Tags,
   Copy,
   Download,
@@ -36,7 +35,7 @@ import {
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
-import { samfordClientArchetypes, type Archetype } from "./archetypeData";
+import { samfordClientArchetypes } from "./archetypeData";
 
 // Interfaces
 interface FormData {
@@ -126,7 +125,7 @@ export default function ContentCreationForm() {
         archetypesToUse.find(
           (a) =>
             a.name === "Established Leader" &&
-            (refinEMENTS[a.name] || 0) + diff >= 0
+            (refinements[a.name] || 0) + diff >= 0
         ) ||
         archetypesToUse.find(
           (a) =>
@@ -1194,6 +1193,20 @@ export default function ContentCreationForm() {
                         </option>
                         ))}
                     </select>
+                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-2 gap-y-1">
+                        {formData.archetypeRefinements &&
+                        Object.entries(formData.archetypeRefinements)
+                            .filter(([, percentage]) => percentage > 0)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([name, percentage]) => (
+                            <span
+                                key={name}
+                                className="inline-block bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-200"
+                            >
+                                {name}: {percentage}%
+                            </span>
+                            ))}
+                    </div>
                 </div>
                 
                 {/* Embedded Archetype Panel */}
@@ -1339,7 +1352,7 @@ export default function ContentCreationForm() {
             />
           </div>
 
-          <div className="p-4 border-t dark:border-gray-700 rounded-lg shadow bg-slate-50 dark:bg-gray-800/60 mt-6">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 rounded-lg shadow bg-slate-50 dark:bg-gray-800/60 mt-6">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3 flex items-center"><Layers size={20} className="mr-2 text-indigo-600 dark:text-indigo-400" />Create Version Segmentations<Info size={14} className="ml-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer" onClick={() => alert('Define segments (e.g., "In-State", "Out-of-State", "Athlete") to generate tailored versions of the content above.')}/></h3>
             <div className="mb-3">
               <label htmlFor="segmentationInput" className="sr-only">Add segment tags (comma-separated)</label>

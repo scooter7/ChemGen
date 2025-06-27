@@ -10,6 +10,7 @@ import {
   UserCircle2,
   Image as ImageIconLucide,
 } from 'lucide-react';
+import Image from 'next/image'; // Import the Next.js Image component
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -27,10 +28,13 @@ export default function Sidebar() {
       {/* Logo section: full-bleed, no padding */}
       <div className="border-b border-slate-700">
         <Link href="/dashboard" className="block">
-          <img
+          <Image
             src="/michaelailogo.png"
             alt="ChemGen logo"
+            width={256}
+            height={256}
             className="w-full h-auto"
+            priority
           />
         </Link>
       </div>
