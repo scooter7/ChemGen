@@ -36,7 +36,6 @@ export default function Sidebar() {
           <img
             src="/michaelailogo.png"
             alt="ChemGen logo"
-            className="h-8 w-auto"
           />
         </Link>
       </div>
