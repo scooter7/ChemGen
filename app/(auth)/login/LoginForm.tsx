@@ -5,6 +5,7 @@ import { useState, FormEvent } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -51,6 +52,16 @@ export default function LoginForm() {
 
   return (
     <div className="bg-white dark:bg-gray-800 p-8 shadow-md rounded-lg">
+      <div className="flex justify-center mb-6">
+        <Image
+          src="/michaelailogo.png"
+          alt="ChemGen Logo"
+          width={256}
+          height={100}
+          className="h-auto"
+          priority
+        />
+      </div>
       <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white mb-6">Login</h2>
       {error && <p className="mb-4 text-center text-sm text-red-500 bg-red-100 dark:bg-red-900 dark:text-red-300 p-3 rounded-md">{error}</p>}
       <form onSubmit={handleSubmit} className="space-y-6">
