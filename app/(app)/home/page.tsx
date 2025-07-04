@@ -385,8 +385,8 @@ export default function HomePage() {
                      {isFetchingImages ? <Loader2 className="animate-spin"/> : (
                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                              {imageRecommendations.map(img => (
-                                 <div key={img.id} className="border-2 border-transparent hover:border-cyan-400 rounded-md overflow-hidden cursor-pointer">
-                                     {img.publicUrl && <NextImage src={img.publicUrl} alt={img.fileName} width={200} height={200} className="w-full h-auto object-cover"/>}
+                                 <div key={img.id} className="relative aspect-square border-2 border-transparent hover:border-cyan-400 rounded-md overflow-hidden cursor-pointer">
+                                     {img.publicUrl && <NextImage src={img.publicUrl} alt={img.fileName} layout="fill" className="object-cover"/>}
                                  </div>
                              ))}
                          </div>
