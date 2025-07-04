@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Aperture, Paperclip, FolderSearch, Info,
   Copy, Download, PlusCircle, Loader2,
-  Layers, Save
+  Layers, Save, PenSquare
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -75,12 +75,18 @@ export default function HomePage() {
   const [segmentTags, setSegmentTags] = useState<string[]>([]);
   const newSegmentTagRef = useRef<HTMLInputElement>(null);
 
+  // Revision State
+  const [revisingId, setRevisingId] = useState<string | null>(null); // 'main' or segmentTag
+  const [revisionInstructions, setRevisionInstructions] = useState("");
+
+
   // Loading and Status State
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSegmenting, setIsSegmenting] = useState(false);
   const [isFetchingImages, setIsFetchingImages] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -205,7 +211,7 @@ export default function HomePage() {
   };
 
 
-  const handleSave = async () => {
+  const handleSave = async (contentToSave: string) => {
     if (!result) return;
     setIsSaving(true);
     setSuccessMessage(null);
@@ -215,7 +221,7 @@ export default function HomePage() {
             promptText: formData.prompt,
             audience: formData.audience,
             mediaType: formData.mediaType,
-            generatedBodyHtml: editedContent,
+            generatedBodyHtml: contentToSave,
             justification: result.justification,
         }
         const response = await fetch('/api/content-history', {
@@ -232,8 +238,8 @@ export default function HomePage() {
     }
   };
 
-  const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(editedContent)
+  const handleCopyToClipboard = (textToCopy: string) => {
+    navigator.clipboard.writeText(textToCopy)
         .then(() => setSuccessMessage("Content copied to clipboard!"))
         .catch(() => setError("Failed to copy content."));
   };
@@ -278,6 +284,58 @@ export default function HomePage() {
         setIsSegmenting(false);
     }
   };
+  
+    const handleRevisionSubmit = async () => {
+        if (!revisingId || !revisionInstructions) {
+            setError("Revision instructions cannot be empty.");
+            return;
+        }
+
+        setIsSubmittingRevision(true);
+        setError(null);
+
+        try {
+            let originalContent = "";
+            if (revisingId === 'main') {
+                originalContent = editedContent;
+            } else {
+                const variation = segmentedVariations.find(v => v.segmentTag === revisingId);
+                if (variation) originalContent = variation.generatedText;
+            }
+
+            if (!originalContent) throw new Error("Could not find original content to revise.");
+
+            const response = await fetch('/api/revise-content', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ originalContent, revisionInstructions }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || "Revision failed.");
+
+            // Update the correct piece of state
+            if (revisingId === 'main') {
+                setEditedContent(data.revisedContent);
+                // Also update the main result to keep them in sync if needed
+                setResult(prev => prev ? { ...prev, generatedText: data.revisedContent } : null);
+            } else {
+                setSegmentedVariations(prev =>
+                    prev.map(v => v.segmentTag === revisingId ? { ...v, generatedText: data.revisedContent } : v)
+                );
+            }
+
+            setSuccessMessage("Content revised successfully!");
+            // Close the revision UI
+            setRevisingId(null);
+            setRevisionInstructions("");
+
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred during revision.');
+        } finally {
+            setIsSubmittingRevision(false);
+        }
+    };
 
   if (status === "loading") {
     return (
@@ -408,8 +466,8 @@ export default function HomePage() {
       </div>
 
         {/* Results Section */}
-        {error && <div className="p-4 bg-red-900/30 text-red-300 rounded-md">{error}</div>}
-        {successMessage && <div className="p-4 bg-green-900/30 text-green-300 rounded-md">{successMessage}</div>}
+        {error && <div className="p-4 my-4 bg-red-900/30 text-red-300 rounded-md">{error}</div>}
+        {successMessage && <div className="p-4 my-4 bg-green-900/30 text-green-300 rounded-md">{successMessage}</div>}
 
         {result && (
             <div className="space-y-8 mt-8">
@@ -424,16 +482,38 @@ export default function HomePage() {
                     </div>
 
                     <div className="mt-6 flex flex-wrap gap-3">
-                        <button onClick={handleSave} disabled={isSaving} className="flex items-center px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-md text-white disabled:opacity-50">
+                        <button onClick={() => handleSave(editedContent)} disabled={isSaving} className="flex items-center px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-md text-white disabled:opacity-50">
                             {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2"/>} Save to History
                         </button>
-                        <button onClick={handleCopyToClipboard} className="flex items-center px-4 py-2 text-sm bg-gray-600 hover:bg-gray-700 rounded-md text-white">
+                        <button onClick={() => handleCopyToClipboard(editedContent)} className="flex items-center px-4 py-2 text-sm bg-gray-600 hover:bg-gray-700 rounded-md text-white">
                             <Copy className="mr-2"/> Copy
                         </button>
                          <button onClick={() => alert("Export functionality coming soon!")} className="flex items-center px-4 py-2 text-sm bg-gray-600 hover:bg-gray-700 rounded-md text-white">
                             <Download className="mr-2"/> Export
                         </button>
+                        <button onClick={() => setRevisingId('main')} className="flex items-center px-4 py-2 text-sm bg-purple-600 hover:bg-purple-700 rounded-md text-white">
+                            <PenSquare className="mr-2"/> Revise
+                        </button>
                     </div>
+                    
+                    {revisingId === 'main' && (
+                        <div className="mt-4 p-4 border-t border-gray-700">
+                            <h4 className="font-semibold text-white mb-2">Revision Instructions</h4>
+                            <textarea
+                                value={revisionInstructions}
+                                onChange={(e) => setRevisionInstructions(e.target.value)}
+                                className="w-full px-3 py-2 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light"
+                                rows={3}
+                                placeholder="e.g., 'Make the tone more formal', 'Add a call to action to visit the website'"
+                            />
+                            <div className="flex justify-end gap-3 mt-2">
+                                <button onClick={() => setRevisingId(null)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-md">Cancel</button>
+                                <button onClick={handleRevisionSubmit} disabled={isSubmittingRevision} className="px-4 py-2 text-sm bg-cyan-600 hover:bg-cyan-700 text-white rounded-md disabled:opacity-50">
+                                    {isSubmittingRevision ? <Loader2 className="animate-spin"/> : "Submit Revision"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Image Recommendations */}
@@ -469,9 +549,34 @@ export default function HomePage() {
                     {segmentedVariations.length > 0 && (
                         <div className="mt-6 space-y-4">
                             {segmentedVariations.map(variation => (
-                                <div key={variation.segmentTag} className="p-4 bg-gray-700/50 rounded-md">
+                                <div key={variation.segmentTag} className="p-4 bg-gray-700/50 rounded-md border border-gray-700">
                                     <h4 className="font-bold text-cyan-400">{variation.segmentTag}</h4>
-                                    <p className="mt-2 text-gray-300">{variation.generatedText}</p>
+                                    <p className="mt-2 text-gray-300 whitespace-pre-wrap">{variation.generatedText}</p>
+                                    
+                                    <div className="mt-4 pt-4 border-t border-gray-600 flex flex-wrap gap-3">
+                                        <button onClick={() => handleSave(variation.generatedText)} className="flex items-center px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 rounded-md text-white"><Save size={14} className="mr-1.5"/> Save</button>
+                                        <button onClick={() => handleCopyToClipboard(variation.generatedText)} className="flex items-center px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-700 rounded-md text-white"><Copy size={14} className="mr-1.5"/> Copy</button>
+                                        <button onClick={() => alert("Export functionality coming soon!")} className="flex items-center px-3 py-1.5 text-xs bg-gray-600 hover:bg-gray-700 rounded-md text-white"><Download size={14} className="mr-1.5"/> Export</button>
+                                        <button onClick={() => setRevisingId(variation.segmentTag)} className="flex items-center px-3 py-1.5 text-xs bg-purple-600 hover:bg-purple-700 rounded-md text-white"><PenSquare size={14} className="mr-1.5"/> Revise</button>
+                                    </div>
+                                    
+                                    {revisingId === variation.segmentTag && (
+                                        <div className="mt-4">
+                                            <textarea
+                                                defaultValue={variation.generatedText}
+                                                onChange={(e) => setRevisionInstructions(e.target.value)}
+                                                className="w-full px-3 py-2 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light text-sm"
+                                                rows={3}
+                                                placeholder="Instructions to revise this segmented version..."
+                                            />
+                                            <div className="flex justify-end gap-3 mt-2">
+                                                <button onClick={() => setRevisingId(null)} className="px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-md">Cancel</button>
+                                                <button onClick={handleRevisionSubmit} disabled={isSubmittingRevision} className="px-4 py-2 text-sm bg-cyan-600 hover:bg-cyan-700 text-white rounded-md disabled:opacity-50">
+                                                    {isSubmittingRevision ? <Loader2 className="animate-spin"/> : "Submit Revision"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
