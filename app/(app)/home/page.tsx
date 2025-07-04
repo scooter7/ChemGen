@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, FormEvent, useEffect, ChangeEvent, KeyboardEvent, useRef } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Aperture, Paperclip, FolderSearch, Info,
   Copy, Download, PlusCircle, Loader2,
-  Layers, Save, PenSquare, Image as ImageIconLucide
+  Layers, Save, PenSquare
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -360,16 +360,10 @@ export default function HomePage() {
             onApplyRefinements={handleApplyRefinements}
         />
        <div className="bg-[#112D36] p-6 md:p-8 shadow-xl rounded-lg">
-            <div className="flex flex-wrap justify-between items-center mb-6">
+            <div className="mb-6">
                 <h1 className="text-2xl sm:text-3xl font-heading text-chemgen-light">
                 Welcome, {session?.user?.name || session?.user?.email || "User"}!
                 </h1>
-                <button
-                onClick={() => signOut({ callbackUrl: '/login' })}
-                className="px-5 py-2.5 bg-[#18313A] hover:bg-[#1B3A44] text-chemgen-light font-body font-normal rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-400 mt-4 sm:mt-0"
-                >
-                Sign Out
-                </button>
             </div>
             <p className="text-chemgen-light font-body font-light mb-6">
                 Use the form below to generate your marketing content.

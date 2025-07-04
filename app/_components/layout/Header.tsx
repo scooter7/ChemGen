@@ -1,12 +1,8 @@
 // app/_components/layout/Header.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { UserCircle2 } from 'lucide-react';
-import NextImage from 'next/image'; // Import NextImage
-
-// interface HeaderProps {} // Removed empty interface
 
 export default function Header() {
   const { data: session } = useSession();
@@ -16,12 +12,7 @@ export default function Header() {
       <div className="container mx-auto flex items-center justify-between h-12">
         {/* Left side: Samford University Logo/Text */}
         <div className="text-lg md:text-xl font-bold text-gray-800 dark:text-slate-100">
-          <Link href="/dashboard">SAMFORD UNIVERSITY</Link>
-        </div>
-
-        {/* Middle: Project Title (visible on larger screens) */}
-        <div className="hidden lg:block text-center text-sm text-gray-500 dark:text-slate-400 font-medium">
-          The Inspirational and Confident Shepherd
+          <Link href="/home">SAMFORD UNIVERSITY</Link>
         </div>
 
         {/* Right side: Carnegie Logo/Text & User Info/Actions */}
@@ -31,19 +22,12 @@ export default function Header() {
           </div>
           
           {session?.user && (
-            <div className="flex items-center">
-              {session.user.image ? (
-                <NextImage 
-                  src={session.user.image} 
-                  alt={session.user.name || "User avatar"} 
-                  className="rounded-full border-2 border-slate-300 dark:border-slate-600 object-cover" 
-                  width={32}
-                  height={32}
-                />
-              ) : (
-                <UserCircle2 size={28} className="text-slate-600 dark:text-slate-400" /> 
-              )}
-            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+            >
+              Sign Out
+            </button>
           )}
         </div>
       </div>
