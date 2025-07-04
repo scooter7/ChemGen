@@ -13,6 +13,7 @@ import NextImage from "next/image";
 import { samfordClientArchetypes } from "@/app/_components/marketing-content/archetypeData";
 import ArchetypeRefinementModal from "@/app/_components/marketing-content/ArchetypeRefinementModal";
 
+
 // --- Interfaces ---
 interface FormData {
   audience: string;
@@ -111,15 +112,12 @@ export default function HomePage() {
   };
 
   const handleSourceMaterialToggle = (materialId: string) => {
-    setFormData((prev) => {
-      const currentSelection = prev.sourceMaterialIds;
-      const isSelected = currentSelection.includes(materialId);
-      
-      const newSelection = isSelected
-        ? currentSelection.filter((id) => id !== materialId)
-        : [...currentSelection, materialId];
-      
-      return { ...prev, sourceMaterialIds: newSelection };
+    setFormData((prevFormData) => {
+      const newSourceMaterialIds = prevFormData.sourceMaterialIds.includes(materialId)
+        ? prevFormData.sourceMaterialIds.filter(id => id !== materialId)
+        : [...prevFormData.sourceMaterialIds, materialId];
+  
+      return { ...prevFormData, sourceMaterialIds: newSourceMaterialIds };
     });
   };
   
