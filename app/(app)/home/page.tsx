@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Aperture, Paperclip, FolderSearch, Info,
   Copy, Download, PlusCircle, Loader2,
-  Layers, Save, PenSquare
+  Layers, Save, PenSquare, Image as ImageIconLucide
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -180,12 +180,11 @@ export default function HomePage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Content generation failed.");
 
-      // **THE FIX: Programmatically format the text for the rich text editor**
       const formattedText = `<p>${data.data.generatedText.replace(/\n\n/g, '</p><p>')}</p>`;
 
       setResult({ ...data.data, generatedText: formattedText });
       setEditedContent(formattedText);
-      await fetchImageRecommendations(data.data.generatedText);
+      // Removed automatic image fetching
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unknown error occurred.");
@@ -194,20 +193,24 @@ export default function HomePage() {
     }
   };
 
-  const fetchImageRecommendations = async (textContent: string) => {
+  const handleSuggestImages = async () => {
+    if (!editedContent) return;
     setIsFetchingImages(true);
+    setError(null);
     try {
         const response = await fetch('/api/images/recommendations', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ textContent }),
+            body: JSON.stringify({ textContent: editedContent, topN: 3 }),
         });
         const data = await response.json();
         if(response.ok) {
             setImageRecommendations(data.recommendations);
+        } else {
+            throw new Error(data.message || "Failed to fetch image recommendations.");
         }
     } catch (error) {
-        console.error("Failed to fetch image recommendations", error);
+        setError(error instanceof Error ? error.message : "Could not fetch images.");
     } finally {
         setIsFetchingImages(false);
     }
@@ -317,10 +320,8 @@ export default function HomePage() {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || "Revision failed.");
 
-            // **THE FIX: Also format the revised text**
             const formattedRevisedText = `<p>${data.revisedContent.replace(/\n\n/g, '</p><p>')}</p>`;
 
-            // Update the correct piece of state
             if (revisingId === 'main') {
                 setEditedContent(formattedRevisedText);
                 setResult(prev => prev ? { ...prev, generatedText: formattedRevisedText } : null);
@@ -488,7 +489,7 @@ export default function HomePage() {
 
                     <div className="mt-6 flex flex-wrap gap-3">
                         <button onClick={() => handleSave(editedContent)} disabled={isSaving} className="flex items-center px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-md text-white disabled:opacity-50">
-                            {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2"/>} Save to History
+                            {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2"/>} Save
                         </button>
                         <button onClick={() => handleCopyToClipboard(editedContent)} className="flex items-center px-4 py-2 text-sm bg-gray-600 hover:bg-gray-700 rounded-md text-white">
                             <Copy className="mr-2"/> Copy
@@ -523,9 +524,14 @@ export default function HomePage() {
 
                 {/* Image Recommendations */}
                 <div className="bg-gray-800 shadow-xl rounded-lg p-6 md:p-8">
-                     <h3 className="text-xl font-bold text-white mb-4">Image Recommendations</h3>
-                     {isFetchingImages ? <Loader2 className="animate-spin"/> : (
-                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-white">Image Recommendations</h3>
+                        <button onClick={handleSuggestImages} disabled={isFetchingImages} className="flex items-center px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 rounded-md text-white disabled:opacity-50">
+                            {isFetchingImages ? <Loader2 className="animate-spin mr-2"/> : <ImageIconLucide className="mr-2"/>} Suggest Images
+                        </button>
+                    </div>
+                     {imageRecommendations.length > 0 && (
+                         <div className="grid grid-cols-3 gap-4">
                              {imageRecommendations.map(img => (
                                  <div key={img.id} className="relative aspect-square border-2 border-transparent hover:border-cyan-400 rounded-md overflow-hidden cursor-pointer">
                                      {img.publicUrl && <NextImage src={img.publicUrl} alt={img.fileName} layout="fill" className="object-cover"/>}
