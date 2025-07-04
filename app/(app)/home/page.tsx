@@ -1,59 +1,428 @@
 "use client";
 
+import React, { useState, FormEvent, useEffect, ChangeEvent, KeyboardEvent, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import ContentCreationForm from "@/app/_components/marketing-content/ContentCreationForm";
+import {
+  Users, Type, Hash, Aperture, MessageSquareText, Paperclip, FolderSearch, Info, RefreshCcw, Tags,
+  Copy, Download, AlertTriangle, ThumbsUp, PlusCircle, Image as ImageIconLucide, Loader2, UploadCloud,
+  Layers, Save, PenSquare, LucideProps
+} from "lucide-react";
+import RichTextEditor from "@/app/_components/ui/RichTextEditor";
+import NextImage from "next/image";
+import { samfordClientArchetypes } from "@/app/_components/marketing-content/archetypeData";
 
+// --- Interfaces ---
+interface FormData {
+  audience: string;
+  mediaType: string;
+  textCount: number;
+  textCountUnit: 'characters' | 'words';
+  dominantArchetype: string;
+  prompt: string;
+  sourceMaterialIds: string[];
+}
+
+interface SourceMaterial {
+  id: string;
+  fileName: string;
+}
+
+interface GenerationResult {
+  generatedText: string;
+  justification: string;
+}
+
+interface ImageRecommendation {
+  id: string;
+  publicUrl: string | null;
+  fileName: string;
+}
+
+interface SegmentedVariation {
+  segmentTag: string;
+  generatedText: string;
+}
+
+// --- Component ---
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // Form State
+  const [formData, setFormData] = useState<FormData>({
+    audience: "",
+    mediaType: "",
+    textCount: 150,
+    textCountUnit: "words",
+    dominantArchetype: "",
+    prompt: "",
+    sourceMaterialIds: [],
+  });
+  const [availableMaterials, setAvailableMaterials] = useState<SourceMaterial[]>([]);
+
+  // Result State
+  const [result, setResult] = useState<GenerationResult | null>(null);
+  const [editedContent, setEditedContent] = useState<string>("");
+  const [imageRecommendations, setImageRecommendations] = useState<ImageRecommendation[]>([]);
+  const [segmentedVariations, setSegmentedVariations] = useState<SegmentedVariation[]>([]);
+  const [segmentTags, setSegmentTags] = useState<string[]>([]);
+  const newSegmentTagRef = useRef<HTMLInputElement>(null);
+
+  // Loading and Status State
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRevising, setIsRevising] = useState(false);
+  const [isSegmenting, setIsSegmenting] = useState(false);
+  const [isFetchingImages, setIsFetchingImages] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace('/login');
     }
+
+    // Fetch available source materials
+    const fetchMaterials = async () => {
+      try {
+        const response = await fetch('/api/source-materials?status=INDEXED');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableMaterials(data);
+        } else {
+          console.error("Failed to fetch source materials");
+        }
+      } catch (error) {
+        console.error("Error fetching source materials:", error);
+      }
+    };
+    fetchMaterials();
   }, [status, router]);
+
+  // --- Handlers ---
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+    const handleSourceMaterialToggle = (materialId: string) => {
+        setFormData((prev) => {
+        const newSelection = prev.sourceMaterialIds.includes(materialId)
+            ? prev.sourceMaterialIds.filter((id) => id !== materialId)
+            : [...prev.sourceMaterialIds, materialId];
+        return { ...prev, sourceMaterialIds: newSelection };
+        });
+    };
+
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    setResult(null);
+    setImageRecommendations([]);
+    setSegmentedVariations([]);
+
+    try {
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Content generation failed.");
+
+      setResult(data.data);
+      setEditedContent(data.data.generatedText);
+      await fetchImageRecommendations(data.data.generatedText);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unknown error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchImageRecommendations = async (textContent: string) => {
+    setIsFetchingImages(true);
+    try {
+        const response = await fetch('/api/images/recommendations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ textContent }),
+        });
+        const data = await response.json();
+        if(response.ok) {
+            setImageRecommendations(data.recommendations);
+        }
+    } catch (error) {
+        console.error("Failed to fetch image recommendations", error);
+    } finally {
+        setIsFetchingImages(false);
+    }
+  };
+
+
+  const handleSave = async () => {
+    if (!result) return;
+    setIsSaving(true);
+    setSuccessMessage(null);
+    setError(null);
+    try {
+        const payload = {
+            promptText: formData.prompt,
+            audience: formData.audience,
+            mediaType: formData.mediaType,
+            generatedBodyHtml: editedContent,
+            justification: result.justification,
+        }
+        const response = await fetch('/api/content-history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if(!response.ok) throw new Error("Failed to save to history.");
+        setSuccessMessage("Successfully saved to history!");
+    } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save to history.');
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(editedContent)
+        .then(() => setSuccessMessage("Content copied to clipboard!"))
+        .catch(() => setError("Failed to copy content."));
+  };
+  
+    const handleAddSegmentTag = () => {
+        if (newSegmentTagRef.current) {
+            const newTag = newSegmentTagRef.current.value.trim();
+            if (newTag && !segmentTags.includes(newTag)) {
+                setSegmentTags([...segmentTags, newTag]);
+            }
+            newSegmentTagRef.current.value = ""; // Clear input
+        }
+    };
+
+    const handleSegmentTagKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleAddSegmentTag();
+        }
+    };
+
+
+  const handleSegmentation = async () => {
+    if(segmentTags.length === 0) {
+        setError("Please add at least one segment tag.");
+        return;
+    }
+    setIsSegmenting(true);
+    setError(null);
+    try {
+        const response = await fetch('/api/generate-segmented-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ baseContent: editedContent, segmentTags, originalPromptData: formData })
+        });
+        const data = await response.json();
+        if(!response.ok) throw new Error(data.message || "Failed to generate segments.");
+        setSegmentedVariations(data.segmentedVariations);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not generate segments.');
+    } finally {
+        setIsSegmenting(false);
+    }
+  };
 
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-lg font-heading">Loading Home...</p>
+        <Loader2 className="animate-spin h-8 w-8" />
       </div>
     );
   }
 
-  if (status === "unauthenticated") {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-lg font-heading">Redirecting to login...</p>
+  return (
+    <div className="space-y-8">
+      {/* Form Section */}
+       <div className="bg-[#112D36] p-6 md:p-8 shadow-xl rounded-lg">
+            <div className="flex flex-wrap justify-between items-center mb-6">
+                <h1 className="text-2xl sm:text-3xl font-heading text-chemgen-light">
+                Welcome, {session?.user?.name || session?.user?.email || "User"}!
+                </h1>
+                <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="px-5 py-2.5 bg-[#18313A] hover:bg-[#1B3A44] text-chemgen-light font-body font-normal rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-400 mt-4 sm:mt-0"
+                >
+                Sign Out
+                </button>
+            </div>
+            <p className="text-chemgen-light font-body font-light mb-6">
+                Use the form below to generate your marketing content.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-6">
+                 <div>
+                    <label htmlFor="audience" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                    Audience <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <select id="audience" name="audience" value={formData.audience || ""} onChange={handleChange} required
+                    className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
+                    <option value="">Select Audience</option>
+                    {["Prospective Students", "Alumni", "Donors", "Campus Community", "Parents & Families"].map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    </select>
+                </div>
+                 <div>
+                    <label htmlFor="mediaType" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                    Media Type <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <select id="mediaType" name="mediaType" value={formData.mediaType || ""} onChange={handleChange} required
+                    className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
+                    <option value="">Select Media Type</option>
+                    {["Email Newsletter", "Social Media Post", "Blog Article", "Press Release", "Content/SEO"].map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="dominantArchetype" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                    Dominant Brand Archetype <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <div className="flex gap-3">
+                    <select id="dominantArchetype" name="dominantArchetype" value={formData.dominantArchetype || ""} onChange={handleChange} required
+                        className="flex-1 px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
+                        <option value="">Select Archetype</option>
+                        {samfordClientArchetypes.map((arch) => (
+                        <option key={arch.name} value={arch.name}>{arch.name}</option>
+                        ))}
+                    </select>
+                    <button type="button"
+                        className="px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-normal hover:bg-[#18313A] focus:ring-2 focus:ring-cyan-400"
+                        onClick={() => alert("Refine archetype mix (modal coming soon)")}>
+                        Refine <Aperture size={16} className="inline ml-1" />
+                    </button>
+                    </div>
+                </div>
+                <div>
+                    <label htmlFor="prompt" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                        Prompt (include instructions and purpose) <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <textarea id="prompt" name="prompt" rows={3} value={formData.prompt || ""} onChange={handleChange}
+                        className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400"
+                        placeholder="Create a virtual admissions event email..." required/>
+                    <div className="flex gap-3 mt-2">
+                        <button type="button" onClick={() => alert("Attach functionality to be implemented.")}
+                            className="flex-1 px-4 py-2 rounded-md border border-[#2A3B3F] bg-[#18313A] text-chemgen-light font-body font-normal hover:bg-[#1B3A44]">
+                            <Paperclip size={16} className="inline mr-2" /> Attach
+                        </button>
+                        <button type="button" onClick={() => alert("Browse Prompts functionality to be implemented.")}
+                            className="flex-1 px-4 py-2 rounded-md border border-[#2A3B3F] bg-[#18313A] text-chemgen-light font-body font-normal hover:bg-[#1B3A44]">
+                            <FolderSearch size={16} className="inline mr-2" /> Browse Prompts
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label className="flex items-center text-sm font-heading text-chemgen-light mb-2">
+                        Reference Source Material(s) <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <div className="w-full p-2 rounded-md border border-[#2A3B3F] bg-[#0B232A] flex flex-wrap gap-2">
+                        {availableMaterials.map((material) => (
+                            <button type="button" key={material.id} onClick={() => handleSourceMaterialToggle(material.id)}
+                                className={`px-3 py-1 rounded-full text-xs font-body font-normal transition-colors ${
+                                formData.sourceMaterialIds.includes(material.id) ? "bg-cyan-500 text-black font-semibold" : "bg-[#18313A] text-chemgen-light hover:bg-[#1B3A44]"}`}>
+                                {material.fileName}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="flex justify-end pt-4">
+                <button type="submit" disabled={isLoading} className="px-8 py-3 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white font-body font-semibold flex items-center justify-center min-w-[150px]">
+                    {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Generate Results"}
+                </button>
+                </div>
+            </form>
       </div>
-    );
-  }
 
-  if (status === "authenticated") {
-    return (
-      <div className="space-y-8">
-        <div className="bg-[#112D36] shadow-xl rounded-lg p-6 md:p-8">
-          <div className="flex flex-wrap justify-between items-center mb-6">
-            <h1 className="text-2xl sm:text-3xl font-heading text-chemgen-light">
-              Welcome, {session?.user?.name || session?.user?.email || "User"}!
-            </h1>
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="px-5 py-2.5 bg-[#18313A] hover:bg-[#1B3A44] text-chemgen-light font-body font-normal rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-cyan-400 mt-4 sm:mt-0"
-            >
-              Sign Out
-            </button>
-          </div>
-          <p className="text-chemgen-light font-body font-light">
-            Use the form below to generate your marketing content.
-          </p>
-        </div>
-        <ContentCreationForm />
-      </div>
-    );
-  }
+        {/* Results Section */}
+        {error && <div className="p-4 bg-red-900/30 text-red-300 rounded-md">{error}</div>}
+        {successMessage && <div className="p-4 bg-green-900/30 text-green-300 rounded-md">{successMessage}</div>}
 
-  return null;
+        {result && (
+            <div className="space-y-8 mt-8">
+                {/* Main Content & Justification */}
+                <div className="bg-gray-800 shadow-xl rounded-lg p-6 md:p-8">
+                    <h3 className="text-xl font-bold text-white mb-4">Generated Content</h3>
+                    <RichTextEditor initialContent={result.generatedText} onChange={setEditedContent} />
+
+                     <div className="mt-4 p-4 bg-gray-700/50 rounded-md">
+                        <h4 className="font-semibold text-gray-200">Justification</h4>
+                        <p className="text-sm text-gray-300 mt-1">{result.justification}</p>
+                    </div>
+
+                    <div className="mt-6 flex flex-wrap gap-3">
+                        <button onClick={handleSave} disabled={isSaving} className="flex items-center px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-md text-white disabled:opacity-50">
+                            {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2"/>} Save to History
+                        </button>
+                        <button onClick={handleCopyToClipboard} className="flex items-center px-4 py-2 text-sm bg-gray-600 hover:bg-gray-700 rounded-md text-white">
+                            <Copy className="mr-2"/> Copy
+                        </button>
+                         <button onClick={() => alert("Export functionality coming soon!")} className="flex items-center px-4 py-2 text-sm bg-gray-600 hover:bg-gray-700 rounded-md text-white">
+                            <Download className="mr-2"/> Export
+                        </button>
+                    </div>
+                </div>
+
+                {/* Image Recommendations */}
+                <div className="bg-gray-800 shadow-xl rounded-lg p-6 md:p-8">
+                     <h3 className="text-xl font-bold text-white mb-4">Image Recommendations</h3>
+                     {isFetchingImages ? <Loader2 className="animate-spin"/> : (
+                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                             {imageRecommendations.map(img => (
+                                 <div key={img.id} className="border-2 border-transparent hover:border-cyan-400 rounded-md overflow-hidden cursor-pointer">
+                                     {img.publicUrl && <NextImage src={img.publicUrl} alt={img.fileName} width={200} height={200} className="w-full h-auto object-cover"/>}
+                                 </div>
+                             ))}
+                         </div>
+                     )}
+                </div>
+
+                {/* Segmentation */}
+                <div className="bg-gray-800 shadow-xl rounded-lg p-6 md:p-8">
+                    <h3 className="text-xl font-bold text-white mb-4">Create Segmented Versions</h3>
+                     <div className="flex gap-2 mb-4">
+                        <input ref={newSegmentTagRef} onKeyPress={handleSegmentTagKeyPress} type="text" placeholder="e.g., In-State Students" className="flex-grow px-3 py-2 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light"/>
+                        <button onClick={handleAddSegmentTag} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-md text-white"><PlusCircle/></button>
+                    </div>
+                     <div className="flex flex-wrap gap-2 mb-4">
+                        {segmentTags.map(tag => (
+                            <span key={tag} className="px-3 py-1 bg-gray-700 rounded-full text-sm text-gray-200">{tag}</span>
+                        ))}
+                    </div>
+                    <button onClick={handleSegmentation} disabled={isSegmenting} className="flex items-center px-4 py-2 text-sm bg-green-600 hover:bg-green-700 rounded-md text-white disabled:opacity-50">
+                         {isSegmenting ? <Loader2 className="animate-spin mr-2"/> : <Layers className="mr-2"/>} Generate Segments
+                    </button>
+
+                    {segmentedVariations.length > 0 && (
+                        <div className="mt-6 space-y-4">
+                            {segmentedVariations.map(variation => (
+                                <div key={variation.segmentTag} className="p-4 bg-gray-700/50 rounded-md">
+                                    <h4 className="font-bold text-cyan-400">{variation.segmentTag}</h4>
+                                    <p className="mt-2 text-gray-300">{variation.generatedText}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+    </div>
+  );
 }
