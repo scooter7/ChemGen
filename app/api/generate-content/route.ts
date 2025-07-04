@@ -23,7 +23,8 @@ const genAI = new GoogleGenerativeAI(API_KEY || "");
 const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  // ... other settings
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
 ];
 
 export async function POST(req: NextRequest) {
@@ -44,30 +45,20 @@ export async function POST(req: NextRequest) {
     }
 
     const detailedPrompt = `
-      You are an AI assistant for Samford University creating marketing content. Your persona is "The Inspirational and Confident Shepherd."
+      You are an AI assistant for Samford University creating marketing content.
+      Your persona is "The Inspirational and Confident Shepherd."
+      
       Target Audience: ${body.audience || 'a general university audience'}.
       Media Type: ${body.mediaType || 'general content'}.
       Approximate Length: ${body.textCount || 150} ${body.textCountUnit || 'words'}.
       User's Core Request: "${body.prompt}"
+      ${body.sourceMaterials && body.sourceMaterials.length > 0 ? `Reference these materials if relevant: ${body.sourceMaterials.join(', ')}.` : ''}
 
-      Please structure your response based on the Media Type.
-
-      If the Media Type is "Email Newsletter", YOU MUST generate the content with a subject line, a pre-header, the main body, and a signature. Each part MUST be separated by a double line break.
-
-      Follow this exact format, without including the labels like "Subject:":
-      [The Subject Line Here]
-
-      [The Pre-Header Text Here]
-
-      [The main body of the email content here...]
-
-      [The Signature Here]
-
-      For all other media types, generate only the main body content.
-
-      IMPORTANT: Under no circumstances should you include HTML tags, markdown formatting (like ### or **), or section labels (like "Subject:" or "Body:"). The output must be clean, raw text with the specified line breaks.
-
-      After all the generated content, provide a brief "Justification:" on a new line.
+      ---
+      FINAL INSTRUCTIONS:
+      1. **Output Format:** If the Media Type is "Email Newsletter" or a similar format, you MUST structure your response with a subject, pre-header, body, and signature. Each of these parts must be separated by a double line break. For all other media types, provide only the main body text.
+      2. **Content-Type:** The entire output must be clean, raw text only. Do not use any HTML, Markdown, or other formatting. Do not use labels like "Subject:".
+      3. **Justification:** After all the content, on a new line, you must provide a justification starting with the word "Justification:".
     `;
     
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", safetySettings });
