@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
     const prompt = `
       You are an expert editor. Revise the following "ORIGINAL CONTENT" based on the provided "REVISION INSTRUCTIONS".
       Maintain the original tone and purpose unless the instructions specify otherwise.
-      Output only the final, revised HTML content and nothing else.
+      If the original content has distinct sections (like a subject, body, and signature), preserve that structure with double line breaks between them.
+      IMPORTANT: Output only the final, revised raw text. Do NOT include any HTML tags or markdown formatting.
 
       REVISION INSTRUCTIONS:
       ---

@@ -19,10 +19,8 @@ interface ContentGenerationRequest {
 const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
   console.error("GEMINI_API_KEY is not set in .env file");
-  // You might throw an error here or handle it depending on your app's needs
-  // For now, the route will fail if the API key is missing.
 }
-const genAI = new GoogleGenerativeAI(API_KEY || ""); // API_KEY check above ensures it's likely set
+const genAI = new GoogleGenerativeAI(API_KEY || ""); 
 
 // Define safety settings for the model
 const safetySettings = [
@@ -56,16 +54,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json() as ContentGenerationRequest;
-    console.log('Received data on /api/generate-content:', body);
-
+    
     if (!body.prompt || body.prompt.trim() === '') {
       return NextResponse.json({ message: 'Prompt is required.' }, { status: 400 });
     }
-    // Add more specific validations as needed for other fields
 
-    // 1. Construct a detailed prompt for the Gemini LLM
-    // This is where prompt engineering becomes very important.
-    // You might want to build this string more dynamically.
     const detailedPrompt = `
       You are an AI assistant for Samford University, tasked with creating marketing content.
       Your persona should align with "The Inspirational and Confident Shepherd" brand archetype.
@@ -73,34 +66,34 @@ export async function POST(req: NextRequest) {
       
       Target Audience: ${body.audience || 'a general university audience'}.
       Media Type: ${body.mediaType || 'general content'}.
-      Approximate Length: ${body.textCount || 150} ${body.textCountUnit || 'characters'}.
+      Approximate Length: ${body.textCount || 150} ${body.textCountUnit || 'words'}.
       ${body.sourceMaterials && body.sourceMaterials.length > 0 ? `Reference these materials if relevant: ${body.sourceMaterials.join(', ')}.` : ''}
 
       User's Core Request: "${body.prompt}"
 
-      Please generate the requested content.
-      After the content, provide a brief "Justification:" on a new line, explaining your key creative choices based on the provided parameters (audience, archetype, media type, etc.).
+      Please structure your response based on the Media Type. 
+      If the Media Type is "Email Newsletter" or similar, generate the content with the following parts, each separated by a double line break:
+      1. A subject line.
+      2. A pre-header text (if applicable).
+      3. The main body of the content.
+      4. A signature line.
+      For other media types, just generate the main body content.
+
+      IMPORTANT: Generate only the raw text. Do NOT include any HTML tags, markdown (like \`###\` or \`**\`), or section labels (like "Subject:" or "Body:").
+
+      After all the generated content, provide a brief "Justification:" on a new line, explaining your key creative choices.
     `;
     
-    console.log("Detailed prompt for LLM:", detailedPrompt);
-
-    // 2. Call the Gemini LLM API
-    // For text-only input, use the gemini-pro model
-    // For multimodal (text and image), use gemini-pro-vision
-    // Consider gemini-1.5-flash-latest for speed and cost, or gemini-1.5-pro-latest for best quality.
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", safetySettings });
     
     const result = await model.generateContent(detailedPrompt);
     const response = result.response;
     const text = response.text();
 
-    console.log("LLM Raw Response Text:", text);
-
-    // 3. Process the LLM's response to separate content and justification
     let generatedText = text;
     let justification = "Justification not explicitly provided by AI in this format.";
 
-    const justificationSplit = text.split(/\nJustification:/i); // Case-insensitive split
+    const justificationSplit = text.split(/\nJustification:/i);
     if (justificationSplit.length > 1) {
       generatedText = justificationSplit[0].trim();
       justification = justificationSplit.slice(1).join('\nJustification:').trim();
@@ -119,10 +112,8 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Error in /api/generate-content:', error);
-    // Check for specific Gemini API errors if possible, or provide a generic message
     let errorMessage = 'An unexpected error occurred while generating content.';
     if (error instanceof Error) {
-        // You might want to check error.name or specific error types from the Gemini SDK
         if (error.message.includes('SAFETY')) {
             errorMessage = "The content could not be generated due to safety settings. Please revise your prompt.";
             return NextResponse.json({ message: errorMessage, errorDetails: error }, { status: 400 });
