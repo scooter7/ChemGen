@@ -4,9 +4,9 @@ import React, { useState, FormEvent, useEffect, ChangeEvent, KeyboardEvent, useR
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
-  Users, Type, Hash, Aperture, MessageSquareText, Paperclip, FolderSearch, Info, RefreshCcw, Tags,
-  Copy, Download, AlertTriangle, ThumbsUp, PlusCircle, Image as ImageIconLucide, Loader2, UploadCloud,
-  Layers, Save, PenSquare, LucideProps
+  Aperture, Paperclip, FolderSearch, Info,
+  Copy, Download, PlusCircle, Loader2,
+  Layers, Save
 } from "lucide-react";
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
@@ -72,7 +72,6 @@ export default function HomePage() {
   // Loading and Status State
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isRevising, setIsRevising] = useState(false);
   const [isSegmenting, setIsSegmenting] = useState(false);
   const [isFetchingImages, setIsFetchingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,7 +198,7 @@ export default function HomePage() {
         .then(() => setSuccessMessage("Content copied to clipboard!"))
         .catch(() => setError("Failed to copy content."));
   };
-  
+
     const handleAddSegmentTag = () => {
         if (newSegmentTagRef.current) {
             const newTag = newSegmentTagRef.current.value.trim();
