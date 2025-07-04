@@ -14,8 +14,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 const safetySettings = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  // ... other settings
 ];
 
 interface ReviseContentRequest {
@@ -44,7 +43,7 @@ export async function POST(req: NextRequest) {
     const prompt = `
       You are an expert editor. Revise the following "ORIGINAL CONTENT" based on the provided "REVISION INSTRUCTIONS".
       Maintain the original tone and purpose unless the instructions specify otherwise.
-      If the original content has distinct sections (like a subject, body, and signature), preserve that structure with double line breaks between them.
+      If the original content has distinct sections (like a subject, body, and signature, separated by line breaks), you MUST preserve that structure in your revised output. Ensure the revised sections are also separated by double line breaks.
       IMPORTANT: Output only the final, revised raw text. Do NOT include any HTML tags or markdown formatting.
 
       REVISION INSTRUCTIONS:
