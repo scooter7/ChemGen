@@ -1,8 +1,7 @@
 // app/(app)/profile/page.tsx
 "use client";
 
-import React, { useState, useEffect, FormEvent } from 'react'; // Added FormEvent
-// import { UserCircle2 } from 'lucide-react'; // Already imported if you used it for avatar
+import React, { useState, useEffect, FormEvent } from 'react';
 
 interface UserProfileData {
   id: string;
@@ -38,7 +37,6 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false); // For save operation
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  // const router = useRouter(); // Keep if needed for other navigation
 
   const fetchProfile = async () => {
     setIsLoading(true);
@@ -124,13 +122,12 @@ export default function ProfilePage() {
   };
 
   if (isLoading) return <div className="p-8 text-center"><p>Loading profile...</p></div>;
-  // Error and no data states are handled by profileData check below
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6 md:p-10">
-        {error && <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md text-sm">{error}</div>}
-        {successMessage && <div className="mb-4 p-3 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md text-sm">{successMessage}</div>}
+      <div className="bg-gray-800 shadow-xl rounded-lg p-6 md:p-10">
+        {error && <div className="mb-4 p-3 bg-red-900/30 text-red-300 rounded-md text-sm">{error}</div>}
+        {successMessage && <div className="mb-4 p-3 bg-green-900/30 text-green-300 rounded-md text-sm">{successMessage}</div>}
 
         {!profileData && !isLoading && !error && (
              <div className="p-8 text-center"><p>No profile data found.</p></div>
@@ -139,11 +136,11 @@ export default function ProfilePage() {
         {profileData && (
           <>
             <div className="flex items-center mb-8">
-              <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-300 text-2xl font-semibold mr-6">
+              <div className="w-16 h-16 bg-indigo-900 rounded-full flex items-center justify-center text-indigo-300 text-2xl font-semibold mr-6">
                 {profileData.name ? profileData.name.substring(0, 1).toUpperCase() : 'U'}
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">
                   Hi {isEditing ? editableData.name : profileData.name || profileData.email || 'User'}.
                 </h1>
               </div>
@@ -153,42 +150,42 @@ export default function ProfilePage() {
               <>
                 <div className="space-y-5">
                   {/* Display Fields */}
-                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Department</p><p className="text-md text-gray-800 dark:text-gray-100">{profileData.department || 'N/A'}</p></div>
-                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</p><p className="text-md text-gray-800 dark:text-gray-100">{profileData.name || 'N/A'}</p></div>
-                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Title</p><p className="text-md text-gray-800 dark:text-gray-100">{profileData.title || 'N/A'}</p></div>
-                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Languages</p><p className="text-md text-gray-800 dark:text-gray-100">{displayArrayData(profileData.languages)}</p></div>
-                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Recruitment Region</p><p className="text-md text-gray-800 dark:text-gray-100">{profileData.recruitmentRegion || 'N/A'}</p></div>
+                  <div><p className="text-xs font-medium text-gray-400 uppercase">Department</p><p className="text-md text-gray-100">{profileData.department || 'N/A'}</p></div>
+                  <div><p className="text-xs font-medium text-gray-400 uppercase">Name</p><p className="text-md text-gray-100">{profileData.name || 'N/A'}</p></div>
+                  <div><p className="text-xs font-medium text-gray-400 uppercase">Title</p><p className="text-md text-gray-100">{profileData.title || 'N/A'}</p></div>
+                  <div><p className="text-xs font-medium text-gray-400 uppercase">Languages</p><p className="text-md text-gray-100">{displayArrayData(profileData.languages)}</p></div>
+                  <div><p className="text-xs font-medium text-gray-400 uppercase">Recruitment Region</p><p className="text-md text-gray-100">{profileData.recruitmentRegion || 'N/A'}</p></div>
                 </div>
-                <p className="mt-8 text-sm text-gray-600 dark:text-gray-400 italic">Our AI tool uses this info to personalize your experience.</p>
+                <p className="mt-8 text-sm text-gray-400 italic">Our AI tool uses this info to personalize your experience.</p>
                 <div className="mt-10 text-right">
-                  <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 bg-slate-700 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-semibold rounded-md shadow-md">Edit Profile</button>
+                  <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md shadow-md">Edit Profile</button>
                 </div>
               </>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-5">
                 {/* Editable Fields */}
                 <div>
-                  <label htmlFor="name" className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</label>
-                  <input type="text" name="name" id="name" value={editableData.name} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white sm:text-sm"/>
+                  <label htmlFor="name" className="block text-xs font-medium text-gray-400 uppercase">Name</label>
+                  <input type="text" name="name" id="name" value={editableData.name} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-white sm:text-sm"/>
                 </div>
                 <div>
-                  <label htmlFor="department" className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Department</label>
-                  <input type="text" name="department" id="department" value={editableData.department} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white sm:text-sm"/>
+                  <label htmlFor="department" className="block text-xs font-medium text-gray-400 uppercase">Department</label>
+                  <input type="text" name="department" id="department" value={editableData.department} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-white sm:text-sm"/>
                 </div>
                 <div>
-                  <label htmlFor="title" className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Title</label>
-                  <input type="text" name="title" id="title" value={editableData.title} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white sm:text-sm"/>
+                  <label htmlFor="title" className="block text-xs font-medium text-gray-400 uppercase">Title</label>
+                  <input type="text" name="title" id="title" value={editableData.title} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-white sm:text-sm"/>
                 </div>
                 <div>
-                  <label htmlFor="languages" className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Languages (comma-separated)</label>
-                  <input type="text" name="languages" id="languages" value={editableData.languages} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white sm:text-sm"/>
+                  <label htmlFor="languages" className="block text-xs font-medium text-gray-400 uppercase">Languages (comma-separated)</label>
+                  <input type="text" name="languages" id="languages" value={editableData.languages} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-white sm:text-sm"/>
                 </div>
                 <div>
-                  <label htmlFor="recruitmentRegion" className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Recruitment Region</label
-                  ><input type="text" name="recruitmentRegion" id="recruitmentRegion" value={editableData.recruitmentRegion} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm dark:bg-gray-700 dark:text-white sm:text-sm"/>
+                  <label htmlFor="recruitmentRegion" className="block text-xs font-medium text-gray-400 uppercase">Recruitment Region</label>
+                  <input type="text" name="recruitmentRegion" id="recruitmentRegion" value={editableData.recruitmentRegion} onChange={handleInputChange} className="mt-1 block w-full px-3 py-2 border border-gray-600 rounded-md shadow-sm bg-gray-700 text-white sm:text-sm"/>
                 </div>
                 <div className="mt-10 flex justify-end space-x-3">
-                  <button type="button" onClick={() => { setIsEditing(false); setError(null); setSuccessMessage(null); /* Reset editableData if desired */ }} className="px-6 py-2.5 border border-gray-300 dark:border-gray-500 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
+                  <button type="button" onClick={() => { setIsEditing(false); setError(null); setSuccessMessage(null); }} className="px-6 py-2.5 border border-gray-500 rounded-md text-sm font-medium text-gray-300 hover:bg-gray-700">Cancel</button>
                   <button type="submit" disabled={isSaving} className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md shadow-md disabled:opacity-50">{isSaving ? 'Saving...' : 'Save Changes'}</button>
                 </div>
               </form>
