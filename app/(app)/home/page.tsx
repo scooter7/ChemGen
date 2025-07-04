@@ -400,6 +400,33 @@ export default function HomePage() {
                     </select>
                 </div>
                 <div>
+                    <label htmlFor="textCount" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                        Text Count <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <div className="flex gap-3">
+                        <input
+                            type="number"
+                            id="textCount"
+                            name="textCount"
+                            value={formData.textCount || 0}
+                            onChange={handleChange}
+                            min={0}
+                            className="w-1/2 px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400"
+                            placeholder="100"
+                        />
+                        <select
+                            id="textCountUnit"
+                            name="textCountUnit"
+                            value={formData.textCountUnit || "characters"}
+                            onChange={handleChange}
+                            className="w-1/2 px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400"
+                        >
+                            <option value="characters">Characters</option>
+                            <option value="words">Words</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
                     <label htmlFor="dominantArchetype" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
                     Dominant Brand Archetype <Info size={16} className="ml-1 text-cyan-300" />
                     </label>
