@@ -2,12 +2,12 @@
 "use client";
 
 import React, { useState, useEffect, useRef, FormEvent } from 'react';
-import { 
-    UploadCloud, 
-    FileText, 
+import {
+    UploadCloud,
+    FileText,
     ImageIcon,
-    Trash2, 
-    RefreshCw, 
+    Trash2,
+    RefreshCw,
     Loader2
 } from 'lucide-react';
 import * as pdfjs from 'pdfjs-dist';
@@ -21,7 +21,7 @@ interface SourceMaterial {
   fileName: string;
   fileType?: string | null;
   uploadedAt: string;
-  status: string; 
+  status: string;
 }
 
 export default function BrandMaterialsClientPage() {
@@ -33,7 +33,7 @@ export default function BrandMaterialsClientPage() {
   const [fileDescription, setFileDescription] = useState<string>("");
   const [extractedText, setExtractedText] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState<boolean>(false);
-  
+
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,11 +65,11 @@ export default function BrandMaterialsClientPage() {
       setExtractedText(null);
       return;
     }
-    
+
     setSelectedFile(file);
     setStatusMessage(null);
     setExtractedText(null);
-    
+
     if (file.type === 'application/pdf') {
       setIsParsing(true);
       setStatusMessage({type: 'info', text: `Parsing "${file.name}" in your browser...`});
@@ -103,14 +103,14 @@ export default function BrandMaterialsClientPage() {
         setStatusMessage({type: 'info', text: `Selected "${file.name}". This file will be stored without text analysis.`});
     }
   };
-  
+
   const handleFileUpload = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedFile) {
       setStatusMessage({type: 'error', text: "Please select a file first."});
       return;
     }
-    
+
     setIsUploading(true);
     setStatusMessage({type: 'info', text: `Uploading "${selectedFile.name}"...`});
 
@@ -123,22 +123,22 @@ export default function BrandMaterialsClientPage() {
       const response = await fetch('/api/source-materials/upload', { method: 'POST', body: uploadFormData });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || 'File upload failed.');
-      
+
       setStatusMessage({type: 'success', text: result.message});
-      
+
       setSelectedFile(null);
       setFileDescription("");
       setExtractedText(null);
       if(fileInputRef.current) fileInputRef.current.value = "";
-      
-      fetchMaterials(); 
+
+      fetchMaterials();
     } catch (error) {
       setStatusMessage({type: 'error', text: `Upload Error: ${error instanceof Error ? error.message : 'Unknown upload error.'}`});
     } finally {
       setIsUploading(false);
     }
   };
-  
+
   const handleDeleteMaterial = async (materialId: string, fileName: string) => {
     if (!window.confirm(`Are you sure you want to delete "${fileName}"? This will also remove its processed data.`)) return;
     setDeletingMaterialId(materialId);
@@ -155,33 +155,33 @@ export default function BrandMaterialsClientPage() {
   };
 
   const getFileIcon = (fileType?: string | null) => {
-    if (!fileType) return <FileText className="h-6 w-6 text-gray-500" />;
-    if (fileType.startsWith('image/')) return <ImageIcon className="h-6 w-6 text-blue-500" />;
-    if (fileType === 'application/pdf') return <FileText className="h-6 w-6 text-red-500" />;
-    return <FileText className="h-6 w-6 text-gray-500" />;
+    if (!fileType) return <FileText className="h-6 w-6 text-gray-400" />;
+    if (fileType.startsWith('image/')) return <ImageIcon className="h-6 w-6 text-blue-400" />;
+    if (fileType === 'application/pdf') return <FileText className="h-6 w-6 text-red-400" />;
+    return <FileText className="h-6 w-6 text-gray-400" />;
   };
 
   return (
     <div className="space-y-8">
-      <div className="bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6 md:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Brand Materials</h1>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">Upload documents to provide context for AI content generation. PDFs will be parsed for text in your browser before upload.</p>
-        <form onSubmit={handleFileUpload} className="mb-8 p-4 border border-dashed rounded-lg space-y-4">
-          <h2 className="text-lg font-semibold">Upload New Material</h2>
+      <div className="bg-gray-800 shadow-xl rounded-lg p-6 md:p-8">
+        <h1 className="text-2xl font-bold text-white mb-6">Brand Materials</h1>
+        <p className="text-gray-300 mb-6">Upload documents to provide context for AI content generation. PDFs will be parsed for text in your browser before upload.</p>
+        <form onSubmit={handleFileUpload} className="mb-8 p-4 border border-dashed border-gray-600 rounded-lg space-y-4">
+          <h2 className="text-lg font-semibold text-white">Upload New Material</h2>
           <div>
-            <label htmlFor="file-upload" className="block text-sm font-medium mb-1">Select File</label>
+            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-300 mb-1">Select File</label>
             <div className="flex items-center space-x-3">
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 border rounded-md text-sm font-medium bg-white hover:bg-gray-50">Choose File</button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 border border-gray-600 rounded-md text-sm font-medium bg-gray-700 text-gray-200 hover:bg-gray-600">Choose File</button>
               <input id="file-upload" type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="application/pdf,.doc,.docx,.txt" />
-              {selectedFile && <span className="text-sm">{selectedFile.name}</span>}
-              {isParsing && <Loader2 size={16} className="animate-spin" />}
+              {selectedFile && <span className="text-sm text-gray-400">{selectedFile.name}</span>}
+              {isParsing && <Loader2 size={16} className="animate-spin text-gray-400" />}
             </div>
           </div>
           {selectedFile && (
             <>
               <div>
-                <label htmlFor="fileDescription" className="block text-sm font-medium mb-1">Description (Optional)</label>
-                <textarea id="fileDescription" rows={2} value={fileDescription} onChange={(e) => setFileDescription(e.target.value)} placeholder="Brief description..." className="block w-full text-sm rounded-md border-gray-300 shadow-sm"/>
+                <label htmlFor="fileDescription" className="block text-sm font-medium text-gray-300 mb-1">Description (Optional)</label>
+                <textarea id="fileDescription" rows={2} value={fileDescription} onChange={(e) => setFileDescription(e.target.value)} placeholder="Brief description..." className="block w-full text-sm rounded-md border-gray-600 bg-gray-700 shadow-sm"/>
               </div>
               <button type="submit" disabled={isUploading || isParsing} className="w-full sm:w-auto flex items-center justify-center px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md shadow-sm disabled:opacity-60">
                 <UploadCloud size={18} className="mr-2" />
@@ -191,9 +191,9 @@ export default function BrandMaterialsClientPage() {
           )}
           {statusMessage && (
             <p className={`mt-2 text-sm font-medium p-2 rounded-md ${
-                statusMessage.type === 'error' ? 'bg-red-100 text-red-700' : 
-                statusMessage.type === 'success' ? 'bg-green-100 text-green-700' : 
-                'bg-blue-100 text-blue-700'
+                statusMessage.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                statusMessage.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                'bg-blue-900/30 text-blue-300'
             }`}>
               {statusMessage.text}
             </p>
@@ -201,22 +201,22 @@ export default function BrandMaterialsClientPage() {
         </form>
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Uploaded Materials</h2>
-            <button onClick={fetchMaterials} disabled={isLoadingMaterials || isUploading || !!deletingMaterialId} className="p-2 text-sm rounded-md disabled:opacity-50">
+            <h2 className="text-xl font-semibold text-white">Uploaded Materials</h2>
+            <button onClick={fetchMaterials} disabled={isLoadingMaterials || isUploading || !!deletingMaterialId} className="p-2 text-sm text-indigo-400 rounded-md disabled:opacity-50 hover:bg-gray-700">
                 <RefreshCw size={16} className={isLoadingMaterials ? "animate-spin" : ""} />
             </button>
           </div>
           {isLoadingMaterials && <div className="text-center py-4"><Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-500"/></div>}
-          {fetchError && <p className="text-red-500">Error: {fetchError}</p>}
+          {fetchError && <p className="text-red-400">Error: {fetchError}</p>}
           <ul className="space-y-3">
             {materials.map((material) => (
-              <li key={material.id} className="bg-slate-50 p-3 rounded-md shadow-sm flex items-center justify-between">
+              <li key={material.id} className="bg-gray-700/50 p-3 rounded-md shadow-sm flex items-center justify-between">
                 <div className="flex items-center space-x-3 min-w-0">
                   {getFileIcon(material.fileType)}
-                  <p className="font-medium truncate" title={material.fileName}>{material.fileName}</p>
-                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${material.status === 'INDEXED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{material.status}</span>
+                  <p className="font-medium text-gray-200 truncate" title={material.fileName}>{material.fileName}</p>
+                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${material.status === 'INDEXED' ? 'bg-green-200 text-green-900' : 'bg-yellow-200 text-yellow-900'}`}>{material.status}</span>
                 </div>
-                <button onClick={() => handleDeleteMaterial(material.id, material.fileName)} disabled={!!deletingMaterialId} className="p-1.5 text-red-500 hover:text-red-700 rounded-full hover:bg-red-100 disabled:opacity-50">
+                <button onClick={() => handleDeleteMaterial(material.id, material.fileName)} disabled={!!deletingMaterialId} className="p-1.5 text-red-400 hover:text-red-300 rounded-full hover:bg-red-900/50 disabled:opacity-50">
                   {deletingMaterialId === material.id ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16} />}
                 </button>
               </li>
