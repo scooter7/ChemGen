@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 export const inter = localFont({
   src: [
     {
-      path: "/fonts/Inter-VariableFont_opsz,wght.ttf",
+      path: "./fonts/Inter-VariableFont_opsz,wght.ttf",
       style: "normal",
       weight: "300 400 700",
     },
@@ -15,7 +15,7 @@ export const inter = localFont({
 export const schibstedGrotesk = localFont({
   src: [
     {
-      path: "/fonts/SchibstedGrotesk-VariableFont_wght.ttf",
+      path: "./fonts/SchibstedGrotesk-VariableFont_wght.ttf",
       style: "normal",
       weight: "400 700",
     },
