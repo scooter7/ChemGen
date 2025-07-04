@@ -180,8 +180,11 @@ export default function HomePage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Content generation failed.");
 
-      setResult(data.data);
-      setEditedContent(data.data.generatedText);
+      // **THE FIX: Programmatically format the text for the rich text editor**
+      const formattedText = `<p>${data.data.generatedText.replace(/\n\n/g, '</p><p>')}</p>`;
+
+      setResult({ ...data.data, generatedText: formattedText });
+      setEditedContent(formattedText);
       await fetchImageRecommendations(data.data.generatedText);
 
     } catch (err) {
@@ -314,11 +317,13 @@ export default function HomePage() {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || "Revision failed.");
 
+            // **THE FIX: Also format the revised text**
+            const formattedRevisedText = `<p>${data.revisedContent.replace(/\n\n/g, '</p><p>')}</p>`;
+
             // Update the correct piece of state
             if (revisingId === 'main') {
-                setEditedContent(data.revisedContent);
-                // Also update the main result to keep them in sync if needed
-                setResult(prev => prev ? { ...prev, generatedText: data.revisedContent } : null);
+                setEditedContent(formattedRevisedText);
+                setResult(prev => prev ? { ...prev, generatedText: formattedRevisedText } : null);
             } else {
                 setSegmentedVariations(prev =>
                     prev.map(v => v.segmentTag === revisingId ? { ...v, generatedText: data.revisedContent } : v)
@@ -326,7 +331,6 @@ export default function HomePage() {
             }
 
             setSuccessMessage("Content revised successfully!");
-            // Close the revision UI
             setRevisingId(null);
             setRevisionInstructions("");
 
