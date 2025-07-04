@@ -15,8 +15,8 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Get callbackUrl from query parameters, default to '/dashboard'
-  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
+  // Get callbackUrl from query parameters, default to '/home'
+  const callbackUrl = searchParams.get('callbackUrl') || '/home';
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();

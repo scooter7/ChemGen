@@ -16,7 +16,7 @@ export default function HomePage() {
     }
 
     if (status === "authenticated") {
-      router.replace("/dashboard"); // User is logged in, go to dashboard
+      router.replace("/home"); // User is logged in, go to home
     } else {
       router.replace("/login"); // User is not logged in, go to login
     }
