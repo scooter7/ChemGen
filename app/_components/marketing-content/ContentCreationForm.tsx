@@ -1,47 +1,45 @@
 "use client";
 
-import React, {
-  useState,
-  FormEvent,
-  useEffect,
-  useRef,
-  ChangeEvent,
-  KeyboardEvent,
-} from "react";
+import React, { useState, ChangeEvent, FormEvent } from "react";
 import {
-  Users,
-  Type,
-  Hash,
   Aperture,
-  MessageSquareText,
+  Info,
   Paperclip,
   FolderSearch,
-  Info,
-  RefreshCcw,
-  Tags,
-  Copy,
-  Download,
-  AlertTriangle,
-  ThumbsUp,
-  PlusCircle,
-  Image as ImageIconLucide,
-  Loader2,
-  UploadCloud,
-  Layers,
-  Save,
-  PenSquare,
-  LucideProps,
 } from "lucide-react";
-import RichTextEditor from "@/app/_components/ui/RichTextEditor";
-import NextImage from "next/image";
 import { samfordClientArchetypes } from "./archetypeData";
 
 // ... (interfaces and state remain unchanged)
 
 export default function ContentCreationForm() {
-  // ... (all state and logic remain unchanged)
+    const [formData, setFormData] = useState({
+        audience: '',
+        mediaType: '',
+        textCount: 100,
+        textCountUnit: 'characters',
+        dominantArchetype: '',
+        prompt: '',
+        sourceMaterials: [],
+    });
 
-  // ... (handlers remain unchanged)
+    const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleTextCountChange = (e: ChangeEvent<HTMLInputElement>) => {
+        setFormData(prev => ({ ...prev, textCount: parseInt(e.target.value, 10) || 0 }));
+    };
+
+    const handleTextCountUnitChange = (e: ChangeEvent<HTMLSelectElement>) => {
+        setFormData(prev => ({ ...prev, textCountUnit: e.target.value as 'characters' | 'words' }));
+    };
+
+    const handleSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        // Handle form submission
+    };
+
 
   // --- UI ---
   return (
