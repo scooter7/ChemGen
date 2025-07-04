@@ -111,14 +111,12 @@ export default function HomePage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSourceMaterialToggle = (materialId: string) => {
-    setFormData((prevFormData) => {
-      const newSourceMaterialIds = prevFormData.sourceMaterialIds.includes(materialId)
-        ? prevFormData.sourceMaterialIds.filter(id => id !== materialId)
-        : [...prevFormData.sourceMaterialIds, materialId];
-  
-      return { ...prevFormData, sourceMaterialIds: newSourceMaterialIds };
-    });
+  const handleMaterialSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
+    setFormData(prev => ({
+        ...prev,
+        sourceMaterialIds: selectedOptions,
+    }));
   };
   
   const handleApplyRefinements = (newRefinements: Record<string, number>) => {
@@ -378,18 +376,28 @@ export default function HomePage() {
                     </div>
                 </div>
                 <div>
-                    <label className="flex items-center text-sm font-heading text-chemgen-light mb-2">
+                    <label htmlFor="sourceMaterials" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
                         Reference Source Material(s) <Info size={16} className="ml-1 text-cyan-300" />
                     </label>
-                    <div className="w-full p-2 rounded-md border border-[#2A3B3F] bg-[#0B232A] flex flex-wrap gap-2">
-                        {availableMaterials.map((material) => (
-                            <button type="button" key={material.id} onClick={() => handleSourceMaterialToggle(material.id)}
-                                className={`px-3 py-1 rounded-full text-xs font-body font-normal transition-colors ${
-                                formData.sourceMaterialIds.includes(material.id) ? "bg-cyan-500 text-black font-semibold" : "bg-[#18313A] text-chemgen-light hover:bg-[#1B3A44]"}`}>
-                                {material.fileName}
-                            </button>
-                        ))}
-                    </div>
+                    <select
+                        multiple
+                        id="sourceMaterials"
+                        name="sourceMaterialIds"
+                        value={formData.sourceMaterialIds}
+                        onChange={handleMaterialSelectChange}
+                        className="w-full h-32 px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400"
+                    >
+                        {availableMaterials.length > 0 ? (
+                            availableMaterials.map(material => (
+                                <option key={material.id} value={material.id}>
+                                    {material.fileName}
+                                </option>
+                            ))
+                        ) : (
+                            <option disabled>No indexed materials found.</option>
+                        )}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">Hold Ctrl (or Cmd on Mac) to select multiple materials.</p>
                 </div>
                 <div className="flex justify-end pt-4">
                 <button type="submit" disabled={isLoading} className="px-8 py-3 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white font-body font-semibold flex items-center justify-center min-w-[150px]">
