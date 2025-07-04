@@ -14,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${schibstedGrotesk.variable}`}>
+    <html lang="en" className={`dark ${inter.variable} ${schibstedGrotesk.variable}`}>
       <body className="font-body bg-chemgen-dark text-chemgen-light">
         <AuthSessionProvider>
           {children}

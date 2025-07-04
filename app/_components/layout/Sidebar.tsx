@@ -4,16 +4,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
+  Home, // Changed from LayoutDashboard
   History,
   FileText,
   UserCircle2,
   Image as ImageIconLucide,
 } from 'lucide-react';
-import Image from 'next/image'; // Import the Next.js Image component
+import Image from 'next/image';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/home', label: 'Home', icon: Home }, // Changed this line
   { href: '/history', label: 'History', icon: History },
   { href: '/brand-materials', label: 'Brand Materials', icon: FileText },
   { href: '/image-library', label: 'Image Library', icon: ImageIconLucide },
@@ -27,7 +27,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-slate-800 text-slate-100 hidden md:flex md:flex-col">
       {/* Logo section: full-bleed, no padding */}
       <div className="border-b border-slate-700">
-        <Link href="/dashboard" className="block">
+        <Link href="/home" className="block">
           <Image
             src="/michaelailogo.png"
             alt="ChemGen logo"
