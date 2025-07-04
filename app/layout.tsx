@@ -1,10 +1,7 @@
-// app/layout.tsx (Root Layout)
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css"; // Your global styles (Tailwind directives)
-import AuthSessionProvider from "./_components/AuthSessionProvider"; // Path to your session provider
-
-const inter = Inter({ subsets: ["latin"] });
+import "./globals.css";
+import AuthSessionProvider from "./_components/AuthSessionProvider";
+import { inter, schibstedGrotesk } from "./fonts";
 
 export const metadata: Metadata = {
   title: "ChemGen Marketing AI",
@@ -17,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className={`${inter.variable} ${schibstedGrotesk.variable}`}>
+      <body className="font-body bg-chemgen-dark text-chemgen-light">
         <AuthSessionProvider>
           {children}
         </AuthSessionProvider>

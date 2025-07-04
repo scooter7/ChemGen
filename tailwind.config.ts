@@ -1,22 +1,23 @@
-// tailwind.config.ts
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [
-    './app/**/*.{js,ts,jsx,tsx,mdx}', // This line scans your app directory
-    // If you had a './pages/**/*.{js,ts,jsx,tsx,mdx}', you'd include it
-    // If you had a './components/**/*.{js,ts,jsx,tsx,mdx}', you'd include it
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic':
-          'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+      fontFamily: {
+        heading: ['var(--font-schibsted-grotesk)', 'sans-serif'],
+        body: ['var(--font-inter)', 'sans-serif'],
       },
-      // You can add your custom theme extensions here later (colors, fonts, etc.)
+      backgroundColor: {
+        'chemgen-dark': '#0B232A',
+      },
+      textColor: {
+        'chemgen-light': '#E6F1F5',
+      },
     },
   },
   plugins: [],
-}
-export default config
+};
+export default config;
