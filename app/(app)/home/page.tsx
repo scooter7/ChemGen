@@ -11,6 +11,8 @@ import {
 import RichTextEditor from "@/app/_components/ui/RichTextEditor";
 import NextImage from "next/image";
 import { samfordClientArchetypes } from "@/app/_components/marketing-content/archetypeData";
+import ArchetypeRefinementModal from "@/app/_components/marketing-content/ArchetypeRefinementModal";
+
 
 // --- Interfaces ---
 interface FormData {
@@ -21,6 +23,7 @@ interface FormData {
   dominantArchetype: string;
   prompt: string;
   sourceMaterialIds: string[];
+  archetypeRefinements: Record<string, number>;
 }
 
 interface SourceMaterial {
@@ -58,8 +61,11 @@ export default function HomePage() {
     dominantArchetype: "",
     prompt: "",
     sourceMaterialIds: [],
+    archetypeRefinements: {},
   });
   const [availableMaterials, setAvailableMaterials] = useState<SourceMaterial[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Result State
   const [result, setResult] = useState<GenerationResult | null>(null);
@@ -74,29 +80,28 @@ export default function HomePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSegmenting, setIsSegmenting] = useState(false);
   const [isFetchingImages, setIsFetchingImages] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const fetchMaterials = async () => {
+    try {
+      const response = await fetch('/api/source-materials?status=INDEXED');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableMaterials(data);
+      } else {
+        console.error("Failed to fetch source materials");
+      }
+    } catch (error) {
+      console.error("Error fetching source materials:", error);
+    }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace('/login');
     }
-
-    // Fetch available source materials
-    const fetchMaterials = async () => {
-      try {
-        const response = await fetch('/api/source-materials?status=INDEXED');
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableMaterials(data);
-        } else {
-          console.error("Failed to fetch source materials");
-        }
-      } catch (error) {
-        console.error("Error fetching source materials:", error);
-      }
-    };
     fetchMaterials();
   }, [status, router]);
 
@@ -106,15 +111,51 @@ export default function HomePage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-    const handleSourceMaterialToggle = (materialId: string) => {
-        setFormData((prev) => {
-        const newSelection = prev.sourceMaterialIds.includes(materialId)
-            ? prev.sourceMaterialIds.filter((id) => id !== materialId)
-            : [...prev.sourceMaterialIds, materialId];
-        return { ...prev, sourceMaterialIds: newSelection };
-        });
-    };
+  const handleSourceMaterialToggle = (materialId: string) => {
+    setFormData((prev) => {
+      const newSelection = prev.sourceMaterialIds.includes(materialId)
+        ? prev.sourceMaterialIds.filter((id) => id !== materialId)
+        : [...prev.sourceMaterialIds, materialId];
+      return { ...prev, sourceMaterialIds: newSelection };
+    });
+  };
+  
+  const handleApplyRefinements = (newRefinements: Record<string, number>) => {
+    setFormData(prev => ({ ...prev, archetypeRefinements: newRefinements }));
+  };
+  
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
+  };
 
+  const handleFileAttached = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setSuccessMessage(null);
+    setError(null);
+
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+
+    try {
+        const response = await fetch('/api/source-materials/upload', {
+            method: 'POST',
+            body: uploadFormData,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "File upload failed.");
+        setSuccessMessage(`Successfully uploaded "${file.name}"!`);
+        await fetchMaterials(); // Refresh the list
+    } catch (err) {
+        setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+        setIsUploading(false);
+        // Reset file input
+        if(fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -250,7 +291,13 @@ export default function HomePage() {
 
   return (
     <div className="space-y-8">
-      {/* Form Section */}
+       <ArchetypeRefinementModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            definedArchetypes={samfordClientArchetypes}
+            currentRefinements={formData.archetypeRefinements}
+            onApplyRefinements={handleApplyRefinements}
+        />
        <div className="bg-[#112D36] p-6 md:p-8 shadow-xl rounded-lg">
             <div className="flex flex-wrap justify-between items-center mb-6">
                 <h1 className="text-2xl sm:text-3xl font-heading text-chemgen-light">
@@ -305,7 +352,7 @@ export default function HomePage() {
                     </select>
                     <button type="button"
                         className="px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-normal hover:bg-[#18313A] focus:ring-2 focus:ring-cyan-400"
-                        onClick={() => alert("Refine archetype mix (modal coming soon)")}>
+                        onClick={() => setIsModalOpen(true)}>
                         Refine <Aperture size={16} className="inline ml-1" />
                     </button>
                     </div>
@@ -318,9 +365,11 @@ export default function HomePage() {
                         className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400"
                         placeholder="Create a virtual admissions event email..." required/>
                     <div className="flex gap-3 mt-2">
-                        <button type="button" onClick={() => alert("Attach functionality to be implemented.")}
-                            className="flex-1 px-4 py-2 rounded-md border border-[#2A3B3F] bg-[#18313A] text-chemgen-light font-body font-normal hover:bg-[#1B3A44]">
-                            <Paperclip size={16} className="inline mr-2" /> Attach
+                        <input type="file" ref={fileInputRef} onChange={handleFileAttached} className="hidden" />
+                        <button type="button" onClick={handleAttachClick} disabled={isUploading}
+                            className="flex-1 px-4 py-2 rounded-md border border-[#2A3B3F] bg-[#18313A] text-chemgen-light font-body font-normal hover:bg-[#1B3A44] disabled:opacity-50">
+                            {isUploading ? <Loader2 size={16} className="animate-spin inline mr-2" /> : <Paperclip size={16} className="inline mr-2" />}
+                             Attach
                         </button>
                         <button type="button" onClick={() => alert("Browse Prompts functionality to be implemented.")}
                             className="flex-1 px-4 py-2 rounded-md border border-[#2A3B3F] bg-[#18313A] text-chemgen-light font-body font-normal hover:bg-[#1B3A44]">
