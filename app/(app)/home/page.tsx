@@ -369,52 +369,50 @@ export default function HomePage() {
             <p className="text-chemgen-light font-body font-light mb-6">
                 Use the form below to generate your marketing content.
             </p>
-            <form onSubmit={handleSubmit} className="space-y-6">
-                 <div className="space-y-6 max-w-2xl mx-auto">
-                    <div>
-                        <label htmlFor="audience" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
-                        Audience <Info size={16} className="ml-1 text-cyan-300" />
-                        </label>
-                        <select id="audience" name="audience" value={formData.audience || ""} onChange={handleChange} required
-                        className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
-                        <option value="">Select Audience</option>
-                        {["Prospective Students", "Alumni", "Donors", "Campus Community", "Parents & Families"].map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
+            <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
+                <div>
+                    <label htmlFor="audience" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                    Audience <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <select id="audience" name="audience" value={formData.audience || ""} onChange={handleChange} required
+                    className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
+                    <option value="">Select Audience</option>
+                    {["Prospective Students", "Alumni", "Donors", "Campus Community", "Parents & Families"].map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="mediaType" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                    Media Type <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <select id="mediaType" name="mediaType" value={formData.mediaType || ""} onChange={handleChange} required
+                    className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
+                    <option value="">Select Media Type</option>
+                    {["Email Newsletter", "Social Media Post", "Blog Article", "Press Release", "Content/SEO"].map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="dominantArchetype" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
+                    Dominant Brand Archetype <Info size={16} className="ml-1 text-cyan-300" />
+                    </label>
+                    <div className="flex gap-3">
+                    <select id="dominantArchetype" name="dominantArchetype" value={formData.dominantArchetype || ""} onChange={handleChange} required
+                        className="flex-1 px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
+                        <option value="">Select Archetype</option>
+                        {samfordClientArchetypes.map((arch) => (
+                        <option key={arch.name} value={arch.name}>{arch.name}</option>
                         ))}
-                        </select>
+                    </select>
+                    <button type="button"
+                        className="px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-normal hover:bg-[#18313A] focus:ring-2 focus:ring-cyan-400"
+                        onClick={() => setIsModalOpen(true)}>
+                        Refine <Aperture size={16} className="inline ml-1" />
+                    </button>
                     </div>
-                    <div>
-                        <label htmlFor="mediaType" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
-                        Media Type <Info size={16} className="ml-1 text-cyan-300" />
-                        </label>
-                        <select id="mediaType" name="mediaType" value={formData.mediaType || ""} onChange={handleChange} required
-                        className="w-full px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
-                        <option value="">Select Media Type</option>
-                        {["Email Newsletter", "Social Media Post", "Blog Article", "Press Release", "Content/SEO"].map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                        </select>
-                    </div>
-                    <div>
-                        <label htmlFor="dominantArchetype" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
-                        Dominant Brand Archetype <Info size={16} className="ml-1 text-cyan-300" />
-                        </label>
-                        <div className="flex gap-3">
-                        <select id="dominantArchetype" name="dominantArchetype" value={formData.dominantArchetype || ""} onChange={handleChange} required
-                            className="flex-1 px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-light focus:ring-2 focus:ring-cyan-400">
-                            <option value="">Select Archetype</option>
-                            {samfordClientArchetypes.map((arch) => (
-                            <option key={arch.name} value={arch.name}>{arch.name}</option>
-                            ))}
-                        </select>
-                        <button type="button"
-                            className="px-4 py-3 rounded-md border border-[#2A3B3F] bg-[#0B232A] text-chemgen-light font-body font-normal hover:bg-[#18313A] focus:ring-2 focus:ring-cyan-400"
-                            onClick={() => setIsModalOpen(true)}>
-                            Refine <Aperture size={16} className="inline ml-1" />
-                        </button>
-                        </div>
-                    </div>
-                 </div>
+                </div>
 
                 <div>
                     <label htmlFor="prompt" className="flex items-center text-sm font-heading text-chemgen-light mb-1">
